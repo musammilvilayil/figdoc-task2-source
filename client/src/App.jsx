@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, Check, FileText, Layers3, Link2, LockKeyhole, Palette } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
-import { analyzeFigma, getDemo } from './api.js'
+import { analyzeFigma, listDocuments, saveRemoteDocument } from './api.js'
 import { readLibrary, saveDocument } from './storage.js'
 import DocumentPage from './DocumentPage.jsx'
 
@@ -17,18 +17,18 @@ function HomePage({ onDocument, library, onOpen }) {
   const [showToken, setShowToken] = useState(false)
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
-  async function load(kind) {
+  async function load() {
     if (loading) return
     setError('')
-    setLoading(kind)
+    setLoading('import')
     try {
-      const result = kind === 'demo' ? await getDemo() : await analyzeFigma(figmaUrl.trim(), token.trim())
+      const result = await analyzeFigma(figmaUrl.trim(), token.trim())
       await onDocument({ ...result, localId: crypto.randomUUID() })
       navigate('/document')
     } catch (err) { setError(err.message) } finally { setLoading('') }
   }
   return <main className="home-shell">
-    <nav className="nav container" aria-label="Main navigation"><Brand /><span className="nav-caption">A little clarity for your next handoff.</span><button className="nav-demo" disabled={!!loading} onClick={() => load('demo')}>Explore demo <ArrowUpRight size={15} /></button></nav>
+    <nav className="nav container" aria-label="Main navigation"><Brand /><span className="nav-caption">A little clarity for your next handoff.</span></nav>
     <section className="hero container">
       <motion.div className="hero-story" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5 }}>
         <div className="eyebrow"><span /> FROM DESIGN TO DOCUMENT</div>
@@ -39,7 +39,7 @@ function HomePage({ onDocument, library, onOpen }) {
       </motion.div>
       <motion.div className="import-area" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5, delay: .1 }}>
         <div className="card-overline"><span>START SOMETHING CLEAR</span><span>01 — IMPORT</span></div>
-        <form className="converter-card" onSubmit={(event) => { event.preventDefault(); load('import') }} aria-busy={!!loading}>
+        <form className="converter-card" onSubmit={(event) => { event.preventDefault(); load() }} aria-busy={!!loading}>
           <div className="form-heading"><span className="import-symbol"><Link2 size={23} /></span><h2>Bring your design in.</h2><p>One Figma link. Everything worth handing off.</p></div>
           <label htmlFor="figma-url">Figma file link</label>
           <div className="input-wrap"><Link2 size={17} /><input id="figma-url" type="url" value={figmaUrl} onChange={(e) => setFigmaUrl(e.target.value)} placeholder="https://www.figma.com/design/..." required disabled={!!loading} /></div>
@@ -50,8 +50,6 @@ function HomePage({ onDocument, library, onOpen }) {
           {error && <div className="error" role="alert">{error}</div>}
           <button className="primary-button" disabled={!!loading}>{loading === 'import' ? <><span className="spinner" /> Reading your design…</> : <>Create document <ArrowRight size={17} /></>}</button>
           <p className="privacy-note"><LockKeyhole size={12} /> Your token is used for this request and never stored.</p>
-          <div className="demo-divider"><span>JUST LOOKING AROUND?</span></div>
-          <button className="sample-button" type="button" onClick={() => load('demo')} disabled={!!loading}><span className="sample-icon"><FileText size={20} /></span><span><strong>{loading === 'demo' ? 'Opening sample…' : 'Take a sample for a spin'}<small>No Figma token needed</small></strong></span><ArrowUpRight size={18} /></button>
         </form>
         <div className="below-card"><Check size={14} /> Editable copy <span>·</span> Organized styles <span>·</span> Ready to export</div>
       </motion.div>
@@ -80,6 +78,14 @@ export default function App() {
         const data = await readLibrary()
         let docs = data.documents
         let active = docs.find(item => item.localId === data.active) || null
+        try {
+          const remoteDocs = await listDocuments()
+          if (remoteDocs.length) {
+            docs = remoteDocs
+            active = remoteDocs[0]
+            await Promise.all(remoteDocs.map(item => saveDocument(item)))
+          }
+        } catch { /* Keep using local storage when the server library is unavailable. */ }
         if (!docs.length) {
           let legacy
           try { legacy = JSON.parse(sessionStorage.getItem('figdoc-result')) } catch { /* No valid previous session. */ }
@@ -103,10 +109,11 @@ export default function App() {
     setSaveStatus('Saving…')
     try {
       await saveDocument(record)
+      await saveRemoteDocument(record)
       setLibrary(items => [...items.filter(item => item.localId !== record.localId), record])
       if (current === revision.current) setSaveStatus('Saved on this device')
     } catch {
-      if (current === revision.current) setSaveStatus('Could not save. Export a backup or retry saving.')
+      if (current === revision.current) setSaveStatus('Saved locally. Server sync will retry on the next change.')
     }
   }
   if (!ready) return <main className="container"><p role="status">Opening your workspace…</p></main>

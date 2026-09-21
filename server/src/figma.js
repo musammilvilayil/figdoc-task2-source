@@ -66,13 +66,12 @@ export async function fetchFigmaFile({ fileKey, nodeId, token, signal, fetchImpl
   }
   // Fetch complete page subtrees separately to avoid truncating deeply nested layers.
   const file = await request(`${base}?depth=1`)
-  const pages = []
-  for (const page of file.document?.children || []) {
-    const version = file.version ? `&version=${encodeURIComponent(file.version)}` : ''
+  const version = file.version ? `&version=${encodeURIComponent(file.version)}` : ''
+  const pages = await Promise.all((file.document?.children || []).map(async page => {
     const payload = await request(`${base}/nodes?ids=${encodeURIComponent(page.id)}${version}`)
     const complete = payload.nodes?.[page.id]?.document
     if (!complete) throw Object.assign(new Error(`Could not load page "${page.name}". Please retry or import that page directly.`), { status: 502 })
-    pages.push(complete)
-  }
+    return complete
+  }))
   return { ...file, document: { ...file.document, children: pages } }
 }

@@ -11,10 +11,9 @@ Figdoc converts a Figma file (or one selected frame) into an editable content do
 - Copy grouped by Figma page and section
 - Color and typography token inventory
 - Component and instance inventory
-- Editable copy with session saving
+- Editable copy with server-backed document history and local fallback
 - Markdown and JSON exports
-- Responsive UI, validation, API timeout, security headers, and rate limiting
-- Demo file, so the full workflow can be tested without a Figma token
+- Responsive UI, validation, large-file page fetching, security headers, and rate limiting
 - Unit tests for URL parsing, document extraction, and Markdown export
 
 ## Architecture
@@ -29,7 +28,7 @@ Node/Express API ──────► Figma REST API
     └── exporter: Markdown / JSON
 ```
 
-The personal access token is held only in the request memory. The application does not save it to browser storage or a database.
+The personal access token is held only in request memory. Imported documents are stored in the server's local `figdoc-library.json`; the token is never persisted.
 
 ## Run locally
 
@@ -43,14 +42,14 @@ npm run dev
 - Frontend: http://localhost:5173
 - API: http://localhost:5000
 
-Open the frontend and select **Explore with a sample file** for a token-free demo.
+Open the frontend and import a Figma file using a personal access token.
 
 ## Connect a real Figma file
 
 1. In Figma, create a personal access token with file-content read access.
 2. Ensure the token's account can view the target file.
 3. Paste a Figma design URL and the token into Figdoc.
-4. A URL containing `node-id` imports only that selected frame/node; otherwise, the file is imported up to the API depth used by the MVP.
+4. A URL containing `node-id` imports only that selected frame/node; otherwise, the API fetches each page subtree separately to preserve deeply nested content.
 
 An optional server token can be configured for a controlled internal deployment:
 
@@ -81,9 +80,9 @@ npm start        # serve API and built React app
 }
 ```
 
-### `GET /api/demo`
+### `GET /api/documents` and `PUT /api/documents/:localId`
 
-Returns a complete sample content document.
+List and persist imported content documents. The server stores these records in `figdoc-library.json` (or `FIGDOC_DATA_DIR` when configured).
 
 ### `POST /api/export/markdown`
 
@@ -91,15 +90,15 @@ Accepts `{ "document": contentDocument }` and returns a Markdown download.
 
 ### `POST /api/export/docx` and `POST /api/export/pdf`
 
-Accept `{ "document": contentDocument }` and return a downloadable Word document or PDF. Both include the current edited copy, design tokens, components, and review notes. Use **Export → Word (.docx)** or **Export → PDF (.pdf)** in the document editor. Exports include the full document regardless of the active search or page filter. Fonts for PDF generation are bundled with the server dependency; no desktop Office installation is required.
+Accept `{ "document": contentDocument }` and return a downloadable Word document or PDF. Both include the current edited copy, design tokens, components, and review notes. Use **Export → Word (.docx)** or **Export → PDF (.pdf)** in the document editor. Exports can target the whole document, current filters, a page, or a section. Fonts for PDF generation are bundled with the server dependency; no desktop Office installation is required.
 
 ## Current MVP limitations
 
 - It extracts structured content and design metadata; it does not recreate a pixel-perfect webpage.
-- Deeply nested files beyond the requested API depth may need a selected-frame URL.
+- Server-side document history is local to the configured server instance and does not yet have accounts or permissions.
 - Images, vector descriptions, prototype flows, localization, and comments are not yet included.
 - Editing content in Figdoc does not write changes back to Figma.
-- Session edits are browser-session only; multi-user persistence needs authentication and a database.
+- Server records are shared by document ID; authentication and permissions are still needed for multi-user deployments.
 
 ## Suggested next phase
 

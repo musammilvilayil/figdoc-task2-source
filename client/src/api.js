@@ -14,8 +14,16 @@ export function analyzeFigma(figmaUrl, token) {
   })
 }
 
-export function getDemo() {
-  return request('/api/demo')
+export function listDocuments() {
+  return request('/api/documents')
+}
+
+export function saveRemoteDocument(document) {
+  return request(`/api/documents/${encodeURIComponent(document.localId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(document),
+  })
 }
 
 export async function downloadDocument(document, format = 'markdown') {

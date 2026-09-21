@@ -7,8 +7,8 @@ import helmet from 'helmet'
 import { rateLimit } from 'express-rate-limit'
 import { parseFigmaUrl, fetchFigmaFile } from './figma.js'
 import { parseFigmaDocument, toMarkdown } from './parser.js'
-import { demoFigmaFile } from './demo.js'
 import { toDocx, toPdf } from './exports.js'
+import { listDocuments, saveDocument } from './library.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 5000
@@ -17,14 +17,21 @@ const clientDist = path.resolve(root, '../../client/dist')
 
 app.use(helmet({ contentSecurityPolicy: false }))
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }))
-app.use('/api/export', express.json({ limit: '20mb' }))
-app.use(express.json({ limit: '1mb' }))
+app.use('/api/export', express.json({ limit: '50mb' }))
+app.use(express.json({ limit: '10mb' }))
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 40, standardHeaders: 'draft-8', legacyHeaders: false }))
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'figdoc-api' }))
 
-app.get('/api/demo', (_req, res) => {
-  res.json(parseFigmaDocument(demoFigmaFile, 'Demo file'))
+app.get('/api/documents', async (_req, res, next) => {
+  try { res.json(await listDocuments()) } catch (error) { next(error) }
+})
+
+app.put('/api/documents/:localId', async (req, res, next) => {
+  try {
+    if (req.params.localId !== req.body?.localId) return res.status(400).json({ error: 'Document IDs do not match.' })
+    res.json(await saveDocument(req.body))
+  } catch (error) { next(error) }
 })
 
 app.post('/api/analyze', async (req, res, next) => {
@@ -35,7 +42,7 @@ app.post('/api/analyze', async (req, res, next) => {
 
     const { fileKey, nodeId } = parseFigmaUrl(figmaUrl)
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 90_000)
+    const timeout = setTimeout(() => controller.abort(), Number(process.env.FIGMA_IMPORT_TIMEOUT_MS) || 180_000)
     let file
     try {
       file = await fetchFigmaFile({ fileKey, nodeId, token, signal: controller.signal })
@@ -90,7 +97,7 @@ app.get('/{*splat}', (req, res, next) => {
 })
 
 app.use((error, _req, res, _next) => {
-  if (error.type === 'entity.too.large') return res.status(413).json({ error: 'This export exceeds 20 MB. Choose one page or filtered content and try again.' })
+  if (error.type === 'entity.too.large') return res.status(413).json({ error: 'This request exceeds 50 MB. Choose one page, section, or filtered content and try again.' })
   console.error(error)
   res.status(error.status || 500).json({ error: error.status ? error.message : 'Something went wrong while processing the file.' })
 })

@@ -185,6 +185,6 @@ export function toMarkdown(doc) {
     lines.push('', '## Review notes', '')
     for (const warning of doc.insights.warnings) lines.push(`- ${warning}`)
   }
-  lines.push('', '---', '', `Source: ${doc.source.url || 'Demo data'}`)
+  lines.push('', '---', '', `Source: ${doc.source.url || 'Imported Figma data'}`)
   return lines.join('\n')
 }
