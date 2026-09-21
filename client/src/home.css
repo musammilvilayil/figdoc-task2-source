@@ -74,4 +74,29 @@ a { color:inherit; }
 @media(max-width:1000px) { .hero { gap:35px; grid-template-columns:1fr 410px; }.container { width:calc(100% - 56px); }.hero h1 { font-size:52px; }.hero h1 em { letter-spacing:-2px; } }
 @media(max-width:800px) { .hero { grid-template-columns:1fr; padding-block:40px; gap:35px; }.hero-story { max-width:600px; }.hero h1 { font-size:58px; }.hero-copy { max-width:500px; }.story-note { display:none; }.file-journey { margin-top:25px; }.import-area { width:100%; max-width:550px; justify-self:center; }.feature-strip { grid-template-columns:1fr 1fr; gap:28px 0; }.feature-strip>div:nth-child(3) { border:0; padding-left:0; }.nav-caption { display:none; } }
 @media(max-width:520px) { .container { width:calc(100% - 36px); }.nav { height:76px; }.hero h1 { font-size:46px; letter-spacing:-2px; }.hero-copy { font-size:14px; }.converter-card { padding:23px; }.card-overline { font-size:8px; }.privacy-note { font-size:8px; }.feature-strip { grid-template-columns:1fr; gap:22px; }.feature-strip>div { border:0; padding:0; }.feature-strip svg { margin-bottom:10px; }.feature-intro h2 br { display:none; }.feature-strip p { max-width:300px; }.home-footer { gap:20px; line-height:1.6; }.home-footer>span:last-child { text-align:right; } }
+@media(max-width:600px) {
+	.container { width:calc(100% - 28px); }
+	.nav { height:68px; }
+	.nav-demo { gap:5px; padding:9px 10px; font-size:11px; }
+	.hero { padding-block:30px 42px; gap:27px; }
+	.hero h1 { font-size:clamp(38px,12vw,48px); line-height:1.05; }
+	.hero-copy { line-height:1.65; margin-bottom:22px; }
+	.file-journey { flex-wrap:wrap; gap:9px; margin-top:20px; }
+	.file-journey>span { font-size:10px; }
+	.converter-card { padding:18px; }
+	.form-heading { margin-bottom:21px; }
+	.form-heading h2 { font-size:21px; }
+	.primary-button { gap:18px; }
+	.below-card { flex-wrap:wrap; line-height:1.5; }
+	.saved-library>div { grid-template-columns:1fr; }
+	.saved-library button { padding:14px; }
+}
+@media(max-width:380px) {
+	.container { width:calc(100% - 20px); }
+	.nav-demo { padding-inline:7px; }
+	.nav-demo svg { display:none; }
+	.converter-card { padding:15px; }
+	.input-wrap { padding-inline:9px; }
+	.privacy-note { align-items:flex-start; text-align:center; }
+}
 .field-hint,.privacy-note,.sample-button small,.below-card,.feature-strip p,.home-footer { color:#747e69; }
