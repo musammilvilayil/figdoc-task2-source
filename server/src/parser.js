@@ -16,7 +16,8 @@ function rgbaToHex(color = {}) {
   return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}`.toUpperCase()
 }
 
-function classifyText(node) {
+function classifyText(node, trail = []) {
+  if (trail.some(name => /(?:^|[\s/_-])(button|btn|cta)(?:$|[\s/_-])/i.test(name))) return 'Button'
   const candidate = `${node.name || ''} ${node.style?.fontSize || ''}`
   const namedRole = TEXT_ROLES.find(([pattern]) => pattern.test(candidate))?.[1]
   if (namedRole) return namedRole
@@ -79,7 +80,7 @@ export function parseFigmaDocument(file, sourceUrl = '') {
         id: node.id,
         name: node.name || 'Text',
         content: node.characters.trim(),
-        role: classifyText(node),
+        role: classifyText(node, trail),
         page: pageName,
         section: sectionName || 'Ungrouped',
         path,
@@ -130,8 +131,8 @@ export function parseFigmaDocument(file, sourceUrl = '') {
   const warnings = []
   if (!textItems.length) warnings.push('No visible text content was found in the imported scope.')
   const genericNames = textItems.filter((item) => /^(text|label|rectangle|frame)\s*\d*$/i.test(item.name)).length
-  if (genericNames) warnings.push(`${genericNames} text layer${genericNames === 1 ? '' : 's'} use generic names, which can make content handoff harder.`)
-  if (hiddenCount) warnings.push(`${hiddenCount} hidden layer${hiddenCount === 1 ? '' : 's'} were included in the analysis.`)
+  if (genericNames) warnings.push(`${genericNames} text layer${genericNames === 1 ? ' uses' : 's use'} generic names, which can make content handoff harder.`)
+  if (hiddenCount) warnings.push(`${hiddenCount} hidden layer${hiddenCount === 1 ? ' was' : 's were'} included in the analysis.`)
 
   return {
     schemaVersion: '1.0',
@@ -188,3 +189,4 @@ export function toMarkdown(doc) {
   lines.push('', '---', '', `Source: ${doc.source.url || 'Imported Figma data'}`)
   return lines.join('\n')
 }
+

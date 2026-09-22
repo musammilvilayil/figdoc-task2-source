@@ -29,3 +29,11 @@ test('markdown export includes pages and content', () => {
   assert.match(markdown, /Banking that moves with you/)
   assert.match(markdown, /## Design tokens/)
 })
+
+test('button ancestry classifies CTA copy and singular warnings use correct grammar', () => {
+  const file = { name: 'Fixture', document: { children: [{id:'p',name:'Page',type:'CANVAS',children:[{id:'b',name:'Filled large button',type:'FRAME',visible:false,children:[{id:'t',name:'Text',type:'TEXT',characters:'Get Started',style:{fontSize:16}}]}]}] } }
+  const result = parseFigmaDocument(file)
+  assert.equal(result.content[0].role, 'Button')
+  assert.ok(result.insights.warnings.some(warning => warning.startsWith('1 hidden layer was')))
+  assert.ok(result.insights.warnings.some(warning => warning.startsWith('1 text layer uses')))
+})

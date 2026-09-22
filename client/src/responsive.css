@@ -1,0 +1,74 @@
+/* Responsive workspace structure. Colors and type inherit the existing theme. */
+.app-shell { grid-template-rows:72px minmax(0,1fr); }
+.app-header { min-width:0; }
+.header-file { min-width:0; }
+.header-file>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.document-main { min-width:0; }
+.skip-link { position:fixed; top:8px; left:8px; z-index:100; padding:12px; background:white; color:var(--workspace-purple); transform:translateY(-150%); }
+.skip-link:focus { transform:none; }
+.export-options { margin-bottom:22px; padding:0; background:#fff; }
+.export-options>summary { display:flex; justify-content:space-between; gap:12px; align-items:center; min-height:44px; padding:10px 14px; cursor:pointer; font-size:12px; font-weight:600; }
+.export-options>summary::before { content:'›'; color:var(--workspace-purple); font-size:20px; }
+.export-options[open]>summary::before { transform:rotate(90deg); }
+.export-options>summary>span { margin-left:auto; font-size:11px; color:var(--workspace-muted); font-weight:400; }
+.export-options>label { margin:12px 14px; }
+.export-options select { min-height:40px; min-width:0; max-width:100%; }
+.export-options input[type=checkbox] { width:18px; height:18px; flex:none; accent-color:var(--workspace-purple); }
+.search input { min-width:0; }
+.search kbd { white-space:nowrap; font-size:10px; color:#757585; background:#f4f4f8; padding:4px; border-radius:4px; }
+.search-clear { display:grid; place-items:center; flex:none; width:30px; height:30px; padding:0; border:0; background:none; color:var(--workspace-muted); }
+.group-heading { cursor:pointer; min-height:44px; gap:12px; }
+.group-heading::before { content:'›'; font-size:18px; color:var(--workspace-purple); }
+.content-group[open]>.group-heading::before { transform:rotate(90deg); }
+.group-heading h2 { flex:1; min-width:0; overflow-wrap:anywhere; }
+.group-heading>span { flex:none; }
+.content-group:not([open])>.group-heading { border-bottom:0; }
+.editable-copy { min-width:0; }.editable-copy textarea { font-size:14px; line-height:1.6; }
+.editable-copy small { max-width:100%; }
+.content-row { grid-template-columns:90px minmax(0,1fr) 85px; }
+.pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 0; font-size:12px; color:var(--workspace-muted); }
+.pagination .secondary-button { display:flex; min-height:40px; }
+.pagination button:disabled { cursor:default; opacity:.4; }
+.export-popover { max-width:calc(100vw - 24px); max-height:calc(100dvh - 100px); overflow:auto; }
+.export-item { min-height:52px; }
+.library-tools { display:flex!important; gap:12px; margin:18px 0; }
+.library-tools input,.library-tools select { min-width:0; min-height:44px; border:1px solid var(--border); background:white; border-radius:8px; padding:10px 12px; font:inherit; font-size:13px; color:inherit; }
+.library-tools input { flex:1; }
+.saved-library button>span { min-width:0; }.saved-library strong { overflow-wrap:anywhere; }
+@media(min-width:801px) { .sidebar { height:calc(100dvh - 72px); overflow-y:auto; }.toolbar { grid-template-columns:minmax(150px,1fr) minmax(120px,160px) minmax(130px,170px); }.filter-clear { grid-column:1/-1; justify-self:start; }.summary-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:1000px) { .search kbd { display:none; } }
+@media(max-width:800px) {
+ .app-shell { grid-template-columns:minmax(0,1fr); grid-template-rows:64px auto minmax(0,1fr); }
+ .app-header { display:flex; height:64px; min-height:64px; padding:0 14px; justify-content:space-between; }
+ .app-header .brand { font-size:21px; }.app-header .brand>span:last-child { display:inline; }
+ .header-file { display:none; }.header-actions { flex:none; gap:8px; }
+ .header-actions .secondary-button,.header-actions .primary-small { display:flex; height:40px; min-height:40px; max-width:none; padding:0 12px; font-size:12px; }
+ .primary-small svg:first-child { display:block; }
+ .sidebar { position:static; top:auto; height:auto; min-height:0; display:flex; flex-direction:row; flex-wrap:wrap; overflow:visible; gap:4px; padding:8px 12px; }
+ .sidebar .new-import { flex:1 0 100%; margin:0 0 4px; padding:9px; text-align:center; min-height:38px; }
+ .sidebar>button { width:auto; flex:1; justify-content:center; min-width:0; min-height:44px; padding:8px 4px; font-size:12px; gap:6px; }
+ .sidebar>button svg { width:16px; flex:none; }.sidebar>button span { display:none; }
+ .document-main { width:100%; padding:24px 18px 60px; }
+ .summary-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+ .summary-grid>div { padding:12px; gap:8px; flex-direction:column; align-items:flex-start; }
+ .summary-grid strong { font-size:22px; }.summary-grid small { font-size:11px; }
+ .toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); }.toolbar .search { grid-column:1/-1; }
+ .toolbar select,.search { min-height:44px; font-size:13px; }.filter-clear { grid-column:1/-1; }
+ .content-row { grid-template-columns:75px minmax(0,1fr); gap:12px; }.text-style { display:none; }
+}
+@media(max-width:520px) {
+ .document-main { padding:20px 12px 60px; }.app-header { padding:0 10px; }
+ .sidebar { padding:8px; }.sidebar>button { font-size:11px; }
+ .summary-grid>div { padding:10px; }.summary-grid strong { font-size:20px; }.summary-grid small { font-size:10px; }
+ .content-row { grid-template-columns:minmax(0,1fr); gap:8px; padding:14px; }
+ .group-heading h2 { max-width:none; white-space:normal; font-size:12px; }
+ .editable-copy small { white-space:normal; overflow-wrap:anywhere; font-size:11px; }
+ .search input,.toolbar select,.input-wrap input { font-size:16px; }
+ .library-tools { flex-direction:column; }.saved-library>div { grid-template-columns:minmax(0,1fr); }
+ .export-options label { flex-wrap:wrap; }.export-options select { width:100%; }
+ .inventory-toggle { align-items:flex-start!important; flex-wrap:nowrap!important; }
+ .color-card,.component-card { min-width:0; }.component-card strong,.color-card strong { overflow-wrap:anywhere; }
+ .pagination { gap:6px; font-size:11px; }.pagination button { padding:0 8px; }
+ .save-status { line-height:1.6; }.results-count { line-height:1.6; }
+}
+.export-options>label { width:auto; min-width:0; }.export-options>label>select { max-width:100%; box-sizing:border-box; }

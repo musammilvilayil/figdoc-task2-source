@@ -12,7 +12,7 @@ test('exports include edited text, every section, and escaped Word content', asy
   document.content[0].content = 'Edited & approved <copy>\nSecond line café €'
   const blocks = exportBlocks(document)
   assert.ok(blocks.some(block => block.text === document.content[0].content))
-  for (const component of document.components) assert.ok(blocks.some(block => block.text === component.name))
+  for (const component of document.components) assert.ok(blocks.some(block => block.rows?.some(row => row[0] === component.name)))
   const zip = await JSZip.loadAsync(await toDocx(document))
   const xml = await zip.file('word/document.xml').async('string')
   assert.match(xml, /Edited &amp; approved &lt;copy&gt;/)
@@ -42,4 +42,30 @@ test('invalid export payloads are rejected as bad requests', async () => {
     await assert.rejects(toDocx(payload), { status: 400 })
     await assert.rejects(toPdf(payload), { status: 400 })
   }
+})
+
+test('report tables reflect current edits and provide repeated table headers in Word', async () => {
+  const document = demo()
+  document.content[0].content = 'Repeated edited text'
+  document.content[1].content = 'Repeated edited text'
+  const blocks = exportBlocks(document)
+  assert.ok(blocks.filter(block => block.kind === 'table').length >= 7)
+  assert.ok(blocks.some(block => block.text === '2 occurrences'))
+  const overview = blocks.find(block => block.kind === 'table' && block.headers[0] === 'Measure')
+  assert.equal(overview.rows.find(row => row[0] === 'Characters including spaces')[1], String(document.content.reduce((sum, item) => sum + Array.from(item.content).length, 0)))
+  const zip = await JSZip.loadAsync(await toDocx(document))
+  const xml = await zip.file('word/document.xml').async('string')
+  assert.ok((xml.match(/<w:tbl>/g) || []).length >= 7)
+  assert.match(xml, /w:tblHeader/)
+})
+
+
+test('older saved button copy is corrected in export without mutating original', () => {
+  const document = demo()
+  document.content[0].role = 'Body'
+  document.content[0].path = 'Page / Filled large button / Get Started'
+  const blocks = exportBlocks(document)
+  assert.ok(blocks.some(block => block.text?.startsWith('Button | Hero title')))
+  assert.equal(document.content[0].role, 'Body')
+  assert.ok(!blocks.some(block => block.text?.includes('INSTANCE | Instances:')))
 })

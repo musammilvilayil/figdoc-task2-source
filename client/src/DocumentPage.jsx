@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AlertTriangle, Check, ChevronDown, Download, FileJson, FileText, Layers3, Palette, Search, Type, X } from 'lucide-react'
@@ -26,7 +26,7 @@ export default function DocumentPage({ document, onChange, saveStatus, Brand }) 
     const searchMatches = `${item.content} ${item.name} ${item.section}`.toLowerCase().includes(query.toLowerCase())
     return pageMatches && searchMatches
   }), [document.content, page, query])
-  const sections = [...new Map(document.content.map(item => [`${item.page}::${item.section}`, item])).values()]
+  const sections = useMemo(() => [...new Map(document.content.map(item => [`${item.page}::${item.section}`, item])).values()], [document.content])
 
   function editContent(id, content) {
     onChange({ ...document, content: document.content.map((item) => item.id === id ? { ...item, content } : item) })
@@ -50,7 +50,7 @@ export default function DocumentPage({ document, onChange, saveStatus, Brand }) 
     } finally { setExporting(false) }
   }
   return (
-    <div className="app-shell">
+    <div className="app-shell"><a className="skip-link" href="#workspace-content">Skip to content</a>
       <header className="app-header">
         <Brand />
         <div className="header-file"><span>{document.source.name}</span><small>Content document</small></div>
@@ -74,12 +74,12 @@ export default function DocumentPage({ document, onChange, saveStatus, Brand }) 
         <div className="sidebar-bottom"><small>Generated from Figma</small><span>{document.source.lastModified ? `Updated ${new Date(document.source.lastModified).toLocaleDateString()}` : 'Imported content'}</span></div>
       </aside>
 
-      <main className="document-main">
+      <main className="document-main" id="workspace-content" tabIndex={-1}>
         <div className="save-status" role="status">{saveStatus} · <Link to="/">Saved documents</Link></div>
-        <div className="export-options">
+        <details className="export-options"><summary>Export settings <span>{scope === 'all' ? 'Whole document' : scope === 'filtered' ? `${filtered.length} matching items` : 'Custom selection'}</span></summary>
           <label>Export scope<select aria-label="Export scope" value={scope} onChange={event => setScope(event.target.value)}><option value="all">Whole document</option><option value="filtered">Current search and page filter ({filtered.length} items)</option>{document.pages.map(item => <option key={item.id} value={`page:${item.name}`}>Page: {item.name}</option>)}{sections.map(item => <option key={`${item.page}::${item.section}`} value={`section:${item.page}::${item.section}`}>Section: {item.page} / {item.section}</option>)}</select></label>
           {scope !== 'all' && <label className="inventory-toggle"><input type="checkbox" checked={includeInventories} onChange={event => setIncludeInventories(event.target.checked)} /> Include styles and components from the whole file</label>}
-        </div>
+        </details>
         {tab === 'content' && <ContentView document={document} page={page} setPage={setPage} query={query} setQuery={setQuery} filtered={filtered} editContent={editContent} />}
         {tab === 'tokens' && <TokensView document={document} />}
         {tab === 'components' && <ComponentsView document={document} />}
@@ -95,12 +95,33 @@ function PageTitle({ eyebrow, title, copy }) {
 
 function ContentView({ document, page, setPage, query, setQuery, filtered, editContent }) {
   const [groupBy, setGroupBy] = useState('section')
-  const groups = useMemo(() => filtered.reduce((result, item) => {
+  const [pageState, setPageState] = useState({ key: '', index: 0 })
+  const searchRef = useRef(null)
+  const filterKey = JSON.stringify([query, page, groupBy])
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 50))
+  const pageIndex = pageState.key === filterKey ? Math.min(pageState.index, pageCount - 1) : 0
+  const visible = useMemo(() => filtered.slice(pageIndex * 50, (pageIndex + 1) * 50), [filtered, pageIndex])
+  useEffect(() => {
+    function shortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [])
+  function changePage(index) {
+    setPageState({ key: filterKey, index })
+    searchRef.current?.scrollIntoView({ block: 'center', behavior: 'instant' })
+  }
+  const groups = useMemo(() => visible.reduce((result, item) => {
     const key = groupBy === 'section' ? `${item.page} · ${item.section}` : item.role
     if (!result[key]) result[key] = []
     result[key].push(item)
     return result
-  }, {}), [filtered, groupBy])
+  }, {}), [visible, groupBy])
 
   return <>
     <PageTitle eyebrow="COPY INVENTORY" title="Content" copy="Review and refine every piece of text extracted from your design." />
@@ -111,13 +132,14 @@ function ContentView({ document, page, setPage, query, setQuery, filtered, editC
     </div>
     {document.insights.warnings.length > 0 && <div className="warning"><AlertTriangle size={18} /><div><strong>Review recommended</strong><span>{document.insights.warnings[0]}</span></div></div>}
     <div className="toolbar">
-      <div className="search"><Search size={17} /><input aria-label="Search content" placeholder="Search content…" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+      <div className="search"><Search size={17} /><input ref={searchRef} aria-label="Search content" aria-keyshortcuts="Control+k Meta+k" placeholder="Search content…" onKeyDown={event => { if (event.key === 'Escape') setQuery('') }} value={query} onChange={(e) => setQuery(e.target.value)} /><kbd>⌘ / Ctrl K</kbd>{query && <button className="search-clear" aria-label="Clear search" onClick={() => setQuery('')}><X size={15} /></button>}</div>
       <select aria-label="Filter by page" value={page} onChange={(e) => setPage(e.target.value)}><option>All pages</option>{document.pages.map((item) => <option key={item.id}>{item.name}</option>)}</select>
       <select aria-label="Group content" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="section">Group by section</option><option value="type">Group by type</option></select>
       {(query || page !== 'All pages') && <button className="filter-clear" type="button" onClick={() => { setQuery(''); setPage('All pages') }}>Clear filters</button>}
     </div>
-    <p className="results-count" role="status">{filtered.length} of {document.content.length} text items · Click any text to edit</p><div className="content-list">
-      {Object.entries(groups).map(([group, items]) => <section key={group} className="content-group"><div className="group-heading"><h2>{group}</h2><span>{items.length} item{items.length === 1 ? '' : 's'}</span></div>{items.map((item) => <div className="content-row" key={item.id}><div className={`role-badge role-${item.role.toLowerCase()}`}>{item.role}</div><div className="editable-copy"><textarea aria-label={`Edit ${item.name}`} value={item.content} onChange={(e) => editContent(item.id, e.target.value)} rows={Math.min(4, Math.max(1, Math.ceil(item.content.length / 75)))} /><small>{item.name} · {item.path}</small></div><div className="text-style"><strong>{item.style.size ? `${item.style.size}px` : '—'}</strong><span>{item.style.family}</span></div></div>)}</section>)}
+    <p className="results-count" role="status">{filtered.length} of {document.content.length} text items · Click text to edit · Collapse a section to focus</p><div className="content-list">
+      {Object.entries(groups).map(([group, items]) => <details key={`${filterKey}-${pageIndex}-${group}`} className="content-group" open><summary className="group-heading"><h2>{group}</h2><span>{items.length} item{items.length === 1 ? '' : 's'}</span></summary>{items.map((item) => <div className="content-row" key={item.id}><div className={`role-badge role-${item.role.toLowerCase()}`}>{item.role}</div><div className="editable-copy"><textarea aria-label={`Edit ${item.name}`} value={item.content} onChange={(e) => editContent(item.id, e.target.value)} rows={Math.min(4, Math.max(1, Math.ceil(item.content.length / 75)))} /><small>{item.name} · {item.path}</small></div><div className="text-style"><strong>{item.style.size ? `${item.style.size}px` : '—'}</strong><span>{item.style.family}</span></div></div>)}</details>)}
+      {pageCount > 1 && <nav className="pagination" aria-label="Content pagination"><button className="secondary-button" disabled={pageIndex === 0} onClick={() => changePage(pageIndex - 1)}>Previous</button><span>Items {pageIndex * 50 + 1}–{Math.min((pageIndex + 1) * 50, filtered.length)} of {filtered.length}</span><button className="secondary-button" disabled={pageIndex + 1 === pageCount} onClick={() => changePage(pageIndex + 1)}>Next</button></nav>}
       {!filtered.length && <div className="empty-state"><Search /><h3>No matching content</h3><p>Try a different search or page filter.</p></div>}
     </div>
   </>
@@ -137,6 +159,8 @@ function ComponentsView({ document }) {
     {document.components.length ? <div className="component-grid">{document.components.map((component) => <div className="component-card" key={component.name}><span className="component-icon"><Layers3 /></span><div><strong>{component.name}</strong><small>{component.type.replace('_', ' ').toLowerCase()}</small></div><span className="count">{component.instances}×</span></div>)}</div> : <div className="empty-state large"><Layers3 /><h3>No components found</h3><p>The imported scope does not include components or instances.</p></div>}
   </>
 }
+
+
 
 
 

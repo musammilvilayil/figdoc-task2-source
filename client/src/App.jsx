@@ -12,6 +12,8 @@ function Brand() {
 
 function HomePage({ onDocument, library, onOpen }) {
   const navigate = useNavigate()
+  const [libraryQuery, setLibraryQuery] = useState('')
+  const [librarySort, setLibrarySort] = useState('recent')
   const [figmaUrl, setFigmaUrl] = useState('')
   const [token, setToken] = useState('')
   const [showToken, setShowToken] = useState(false)
@@ -28,7 +30,14 @@ function HomePage({ onDocument, library, onOpen }) {
     } catch (err) { setError(err.message) } finally { setLoading('') }
   }
   return <main className="home-shell">
-    <nav className="nav container" aria-label="Main navigation"><Brand /><span className="nav-caption">A little clarity for your next handoff.</span></nav>
+        <header className="landing-header">
+      <nav className="landing-nav container" aria-label="Main navigation">
+        <div className="landing-identity"><Brand /><span className="brand-descriptor">THE HANDOFF WORKSPACE</span></div>
+        <div className="landing-links"><a href="#how-it-works">How it works</a>{library.length > 0 && <a href="#saved-documents">Your documents <span>{library.length}</span></a>}</div>
+        <a className="header-cta" href="#import-design" onClick={() => requestAnimationFrame(() => window.document.getElementById('figma-url')?.focus({ preventScroll: true }))}>Import a design <ArrowUpRight size={16} /></a>
+      </nav>
+      <div className="header-subline container"><span><span className="header-status-dot" /> A clearer path from Figma to handoff</span><span className="header-formats">WORD <span>/</span> PDF <span>/</span> MARKDOWN <span>/</span> JSON</span></div>
+    </header>
     <section className="hero container">
       <motion.div className="hero-story" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5 }}>
         <div className="eyebrow"><span /> FROM DESIGN TO DOCUMENT</div>
@@ -37,7 +46,7 @@ function HomePage({ onDocument, library, onOpen }) {
         <div className="story-note"><span className="note-line" /> Less hunting through layers.<br />More getting on the same page.</div>
         <div className="file-journey" aria-label="Figma design to editable document"><span><Layers3 size={16} /> Your Figma file</span><ArrowRight size={18} /><span><FileText size={16} /> A clear handoff</span></div>
       </motion.div>
-      <motion.div className="import-area" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5, delay: .1 }}>
+      <motion.div id="import-design" className="import-area" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5, delay: .1 }}>
         <div className="card-overline"><span>START SOMETHING CLEAR</span><span>01 — IMPORT</span></div>
         <form className="converter-card" onSubmit={(event) => { event.preventDefault(); load() }} aria-busy={!!loading}>
           <div className="form-heading"><span className="import-symbol"><Link2 size={23} /></span><h2>Bring your design in.</h2><p>One Figma link. Everything worth handing off.</p></div>
@@ -54,8 +63,8 @@ function HomePage({ onDocument, library, onOpen }) {
         <div className="below-card"><Check size={14} /> Editable copy <span>·</span> Organized styles <span>·</span> Ready to export</div>
       </motion.div>
     </section>
-    {library.length > 0 && <section className="saved-library container"><h2>Your saved documents</h2><p>Stored on this device. Clearing browser data removes these documents.</p><div>{[...library].sort((a,b) => b.savedAt.localeCompare(a.savedAt)).map(item => <button key={item.localId} onClick={async () => { await onOpen(item); navigate('/document') }}><FileText size={20} /><span><strong>{item.source.name}</strong><small>{item.content.length} text items · Saved {new Date(item.savedAt).toLocaleString()}</small></span><ArrowUpRight size={18} /></button>)}</div></section>}
-    <section className="feature-strip container" aria-label="What is in your document">
+    {library.length > 0 && <section id="saved-documents" className="saved-library container"><h2>Your saved documents</h2><p>Reopen a document to continue editing.</p><div className="library-tools"><input aria-label="Search saved documents" placeholder="Find a document…" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} /><select aria-label="Sort saved documents" value={librarySort} onChange={event => setLibrarySort(event.target.value)}><option value="recent">Recently saved</option><option value="name">Name A–Z</option></select></div>{!library.some(item => item.source.name.toLowerCase().includes(libraryQuery.toLowerCase())) && <p role="status">No documents match your search.</p>}<div>{[...library].filter(item => item.source.name.toLowerCase().includes(libraryQuery.toLowerCase())).sort((a,b) => librarySort === 'name' ? a.source.name.localeCompare(b.source.name) : b.savedAt.localeCompare(a.savedAt)).map(item => <button key={item.localId} onClick={async () => { await onOpen(item); navigate('/document') }}><FileText size={20} /><span><strong>{item.source.name}</strong><small>{item.content.length} text items · Saved {new Date(item.savedAt).toLocaleString()}</small></span><ArrowUpRight size={18} /></button>)}</div></section>}
+    <section id="how-it-works" className="feature-strip container" aria-label="What is in your document">
       <div className="feature-intro"><span>THE DETAILS, TOGETHER</span><h2>A handoff with <br />nothing lost.</h2></div>
       <div><FileText /><span className="feature-index">01</span><strong>Every word, accounted for.</strong><p>Review and edit text by page and section. Keep the context that makes copy useful.</p></div>
       <div><Palette /><span className="feature-index">02</span><strong>A shared visual language.</strong><p>Colors, typography, and reusable components, collected from your design.</p></div>
@@ -123,3 +132,5 @@ export default function App() {
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></MotionConfig>
 }
+
+
