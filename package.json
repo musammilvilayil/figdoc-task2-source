@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "description": "Convert Figma design files into structured, editable content documentation.",
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
+    "package:plugin": "node scripts/package-plugin.mjs",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run start -w server",
@@ -12,7 +16,8 @@
     "check": "npm run lint -w client && npm run test -w server && npm run build -w client"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.2"
   },
   "engines": {
     "node": ">=20"

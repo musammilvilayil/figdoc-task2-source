@@ -28,7 +28,7 @@ Node/Express API ──────► Figma REST API
     └── exporter: Markdown / JSON
 ```
 
-The personal access token is held only in request memory. Imported documents are stored in the server's local `figdoc-library.json`; the token is never persisted.
+The personal access token is held only in request memory. Imported documents are stored in the server's local `figdoc-library.json`; the token is never persisted. Accounts use hashed passwords and bearer sessions stored in the configured data directory.
 
 ## Run locally
 
@@ -43,6 +43,10 @@ npm run dev
 - API: http://localhost:5000
 
 Open the frontend and import a Figma file using a personal access token.
+
+Create an account in the app before importing. To enable email notifications, configure the SMTP variables in `.env`. `NOTIFICATION_LIMIT=0` currently leaves the extra action-notification cap disabled; set it above `0` later to cap login, registration, document preparation, and download actions per hour.
+
+Google sign-in is optional. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` in `.env`, and register the callback URL with Google. The app asks on every open; users can choose Google or continue as a guest.
 
 ## Connect a real Figma file
 
@@ -80,6 +84,10 @@ npm start        # serve API and built React app
 }
 ```
 
+### `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/guest`, `GET /api/auth/google`, `GET /api/auth/google/callback`, `POST /api/auth/logout`, and `GET /api/auth/me`
+
+Authentication uses an email and password. Login returns a bearer token; send it as `Authorization: Bearer <token>` on protected API calls.
+
 ### `GET /api/documents` and `PUT /api/documents/:localId`
 
 List and persist imported content documents. The server stores these records in `figdoc-library.json` (or `FIGDOC_DATA_DIR` when configured).
@@ -92,13 +100,17 @@ Accepts `{ "document": contentDocument }` and returns a Markdown download.
 
 Accept `{ "document": contentDocument }` and return a downloadable Word document or PDF. Both include the current edited copy, design tokens, components, and review notes. Use **Export → Word (.docx)** or **Export → PDF (.pdf)** in the document editor. Exports can target the whole document, current filters, a page, or a section. Fonts for PDF generation are bundled with the server dependency; no desktop Office installation is required.
 
+### `POST /api/notifications/email`
+
+Accepts `{ "recipient": "person@example.com", "documentName": "Document" }`. Delivery requires SMTP configuration. This email route is separate from the action-notification limit.
+
 ## Current MVP limitations
 
 - It extracts structured content and design metadata; it does not recreate a pixel-perfect webpage.
 - Server-side document history is local to the configured server instance and does not yet have accounts or permissions.
 - Images, vector descriptions, prototype flows, localization, and comments are not yet included.
 - Editing content in Figdoc does not write changes back to Figma.
-- Server records are shared by document ID; authentication and permissions are still needed for multi-user deployments.
+- The extra action-notification limit is disabled while `NOTIFICATION_LIMIT=0`.
 
 ## Suggested next phase
 

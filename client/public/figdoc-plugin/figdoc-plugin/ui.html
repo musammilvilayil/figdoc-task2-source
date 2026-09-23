@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Figdoc export</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;font:13px/1.6 system-ui,sans-serif;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#252332)}h1{font-size:25px;margin:0;color:#635bff}p{margin:10px 0}ol{padding-left:20px}button,a{font:inherit}button{width:100%;border:0;border-radius:9px;background:#635bff;color:white;padding:12px;font-weight:600;cursor:pointer}button:disabled{opacity:.5;cursor:default}#download{display:block;margin-top:12px;color:#635bff;font-weight:600}#download[hidden]{display:none}#status{min-height:42px}small{color:var(--figma-color-text-secondary,#666)}
+</style>
+<h1>figdoc.</h1><p>Turn your selected design into a clear handoff.</p>
+<ol><li>Select frames or layers in Figma.</li><li>Prepare and download your plugin file.</li><li>In Figdoc, choose <b>Plugin file</b> to import it.</li></ol>
+<p id="selection">Reading selection…</p><button id="export" disabled>Prepare export</button>
+<a id="download" hidden>Download .figdoc.json</a><p id="status" role="status" aria-live="polite"></p>
+<small>No access token. No network requests. Selected layers only, including hidden layers.</small>
+<script>
+const button = document.getElementById('export'), download = document.getElementById('download'), status = document.getElementById('status')
+let count = 0, busy = false, blobUrl
+button.onclick = () => { busy = true; button.disabled = true; download.hidden = true; status.textContent = 'Reading selected layers…'; parent.postMessage({ pluginMessage: { type: 'export' } }, '*') }
+window.onmessage = event => {
+  const message = event.data.pluginMessage
+  if (!message) return
+  if (message.type === 'selection') { count = message.count; document.getElementById('selection').textContent = count + ' selected layer' + (count === 1 ? '' : 's'); button.disabled = busy || !count; return }
+  if (message.type !== 'result' && message.type !== 'error') return
+  busy = false; button.disabled = !count
+  if (message.type === 'error') { status.textContent = message.message; return }
+  const blob = new Blob([message.json], { type: 'application/json' })
+  if (blob.size > 9 * 1024 * 1024) { status.textContent = 'Selection exceeds 9 MB. Select fewer frames and try again.'; return }
+  if (blobUrl) URL.revokeObjectURL(blobUrl)
+  blobUrl = URL.createObjectURL(blob); download.href = blobUrl
+  download.download = (message.name.replace(/[^a-z0-9_-]+/gi, '-') || 'design') + '.figdoc.json'
+  download.hidden = false; status.textContent = 'Ready. Download this file, then import it in Figdoc.'
+}
+parent.postMessage({ pluginMessage: { type: 'ready' } }, '*')
+</script></html>

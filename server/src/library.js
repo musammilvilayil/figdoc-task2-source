@@ -20,17 +20,18 @@ async function writeRecords(records) {
   await fs.rename(temporaryPath, libraryPath)
 }
 
-export async function listDocuments() {
-  return (await readRecords()).sort((left, right) => String(right.savedAt).localeCompare(String(left.savedAt)))
+export async function listDocuments(userId) {
+  return (await readRecords()).filter(document => document.userId === userId).sort((left, right) => String(right.savedAt).localeCompare(String(left.savedAt)))
 }
 
-export async function saveDocument(document) {
+export async function saveDocument(document, userId) {
   if (!document?.localId || !document.source || !Array.isArray(document.content)) {
     throw Object.assign(new Error('A valid content document is required.'), { status: 400 })
   }
+  if (!userId) throw Object.assign(new Error('A signed-in user is required.'), { status: 401 })
   const records = await readRecords()
-  const next = { ...document, savedAt: new Date().toISOString() }
-  const index = records.findIndex(item => item.localId === next.localId)
+  const next = { ...document, userId, savedAt: new Date().toISOString() }
+  const index = records.findIndex(item => item.localId === next.localId && item.userId === userId)
   if (index === -1) records.push(next)
   else records[index] = next
   await writeRecords(records)

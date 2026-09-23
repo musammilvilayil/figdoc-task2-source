@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { AlertTriangle, Check, ChevronDown, Download, FileJson, FileText, Layers3, Palette, Search, Type, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Download, FileJson, FileText, Layers3, Mail, Palette, Search, Type, X } from 'lucide-react'
 import { scopeDocument } from './exportScope.js'
-import { downloadJson, downloadDocument } from './api.js'
+import { downloadJson, downloadDocument, sendEmailNotification } from './api.js'
 
 const tabs = [
   ['content', 'Content', FileText],
@@ -49,6 +49,15 @@ export default function DocumentPage({ document, onChange, saveStatus, Brand }) 
       setToast(error.message)
     } finally { setExporting(false) }
   }
+  async function notifyByEmail() {
+    const recipient = window.prompt('Send this document to which email address?')?.trim()
+    if (!recipient) return
+    setToast('Sending email…'); setExportError(false)
+    try {
+      await sendEmailNotification(recipient, document.source.name)
+      setToast('Email notification sent.')
+    } catch (error) { setExportError(true); setToast(error.message) }
+  }
   return (
     <div className="app-shell"><a className="skip-link" href="#workspace-content">Skip to content</a>
       <header className="app-header">
@@ -56,6 +65,7 @@ export default function DocumentPage({ document, onChange, saveStatus, Brand }) 
         <div className="header-file"><span>{document.source.name}</span><small>Content document</small></div>
         <div className="header-actions">
           <button className="secondary-button" onClick={() => onChange(document)} title={saveStatus}>{saveStatus === 'Saved on this device' ? <Check size={16} /> : null} Save</button>
+          <button className="secondary-button" onClick={notifyByEmail} title="Email notification"><Mail size={16} /> Email</button>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild><button className="primary-small" disabled={exporting} aria-busy={exporting}><Download size={16} /> {exporting ? 'Exporting…' : 'Export'} <ChevronDown size={15} /></button></DropdownMenu.Trigger>
             <DropdownMenu.Portal><DropdownMenu.Content className="export-popover" align="end" sideOffset={8}>

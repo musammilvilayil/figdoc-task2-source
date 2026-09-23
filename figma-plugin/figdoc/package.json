@@ -1,0 +1,22 @@
+{
+  "name": "figdoc",
+  "version": "1.0.0",
+  "description": "Your Figma Plugin",
+  "main": "code.js",
+  "scripts": {
+    "start": "node ../../server/src/index.js",
+    "build": "node ../../scripts/build-plugin.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "author": "",
+  "license": "",
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@figma/eslint-plugin-figma-plugins": "*",
+    "@figma/plugin-typings": "*",
+    "eslint": "^9.39.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.1"
+  }
+}
