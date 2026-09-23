@@ -2,58 +2,36 @@ import pdfmake from 'pdfmake/build/pdfmake.js'
 import fonts from 'pdfmake/build/vfs_fonts.js'
 import { importPlugin } from '../server/src/plugin-import.js'
 import { toDocx, pdfDefinition } from '../server/src/report.js'
+import { setupAuth } from './auth-ui.js'
 
 pdfmake.addVirtualFileSystem(fonts)
 const $ = id => document.getElementById(id)
 let payload = null, report = null, selection = '', busy = false, count = 0, revision = 0
 let connected = false, attempts = 0
-let authToken = null
-const apiUrl = 'http://localhost:5000'
+let authenticated = false
 const status = message => { $('status').textContent = message }
 function showPage(page) {
   if (!$('auth-page') || !$('workspace-page')) return
-  const access = page === 'access'
+  const access = page === 'access' || !authenticated
   $('auth-page').hidden = !access
   $('workspace-page').hidden = access
   $('page-access').classList.toggle('active', access)
   $('page-workspace').classList.toggle('active', !access)
 }
-function readResponse(response) {
-  return response.text().then(body => {
-    let result
-    try { result = JSON.parse(body) } catch { throw new Error(response.status ? `Figdoc server returned HTTP ${response.status}. Start the API with "npm start" from the repository root.` : 'Figdoc server is not running. Start it with "npm start" from the repository root.') }
-    if (!response.ok) throw new Error(result.error || 'Sign-in failed.')
-    return result
-  })
-}
 function controls() {
-  const authenticated = !$('auth') || Boolean(authToken)
   $('export').disabled = busy || !count || !authenticated
-  for (const id of ['docx', 'pdf', 'json']) $(id).disabled = busy || !report
+  for (const id of ['docx', 'pdf', 'json']) $(id).disabled = busy || !report || !authenticated
+  $('page-workspace').disabled = !authenticated
+  $('signout').hidden = !authenticated
 }
-function setAuthenticated(result) {
-  authToken = result.token
-  $('auth-status').textContent = 'Signed in as ' + (result.user?.email || 'guest')
-  showPage('workspace')
-  controls()
-}
-async function authenticate(path, body) {
-  $('login').disabled = $('guest').disabled = true
-  $('auth-status').textContent = 'Signing in…'
-  try {
-    const response = await fetch(apiUrl + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
-    const result = await readResponse(response)
-    setAuthenticated(result)
-  } catch (error) {
-    $('auth-status').textContent = error.message + ' Start the Figdoc server or use the web app.'
-    $('login').disabled = $('guest').disabled = false
-  }
-}
-if ($('login')) $('login').onclick = () => authenticate('/api/auth/login', { email: $('email').value, password: $('password').value })
-if ($('guest')) $('guest').onclick = () => authenticate('/api/auth/guest')
+const authentication = setupAuth({
+  onSignedOut() { authenticated = false; clear(); showPage('access') },
+  onStatus(message) { $('auth-status').textContent = message },
+})
 if ($('page-access')) $('page-access').onclick = () => showPage('access')
 if ($('page-workspace')) $('page-workspace').onclick = () => showPage('workspace')
 showPage('access')
+controls()
 function clear() { payload = report = null; revision++; controls() }
 function download(blob, extension, name) {
   const url = URL.createObjectURL(blob), link = document.createElement('a')
@@ -61,12 +39,14 @@ function download(blob, extension, name) {
   document.body.appendChild(link); link.click(); link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
-$('export').onclick = () => {
+$('export').onclick = async () => {
+  if (!authenticated || busy || !count) return
   clear(); busy = true; controls(); status('Reading selected layers…')
-  parent.postMessage({ pluginMessage: { type: 'export' } }, '*')
+  try { parent.postMessage({ pluginMessage: { type: 'export', token: await authentication.token() } }, '*') }
+  catch (error) { busy = false; authenticated = false; clear(); showPage('access'); $('auth-status').textContent = error.message }
 }
 for (const format of ['docx', 'pdf', 'json']) $(format).onclick = async () => {
-  if (!report || busy) return
+  if (!authenticated || !report || busy) return
   const snapshot = report, source = payload, currentRevision = revision
   busy = true; controls(); status('Preparing ' + format.toUpperCase() + '…')
   try {
@@ -83,6 +63,15 @@ window.onmessage = event => {
   // Figma bridges sandbox messages; event.source is not guaranteed to be parent.
   const message = event.data?.pluginMessage
   if (!message) return
+  if (message.type === 'authenticated') {
+    authenticated = true
+    $('auth-status').textContent = 'Signed in as ' + message.email
+    showPage('workspace'); controls(); return
+  }
+  if (message.type === 'auth-error') {
+    authenticated = false; busy = false; clear(); showPage('access')
+    $('auth-status').textContent = message.message; return
+  }
   if (message.type === 'selection') {
     if (!Number.isInteger(message.count) || typeof message.selection !== 'string') return
     connected = true; clearInterval(handshake)
@@ -92,7 +81,7 @@ window.onmessage = event => {
     $('selection').textContent = count + ' selected layer' + (count === 1 ? '' : 's')
     controls(); return
   }
-  if (!['result', 'error'].includes(message.type)) return
+  if (!authenticated || !['result', 'error'].includes(message.type)) return
   busy = false; clear()
   if (message.type === 'error') { status(message.message); return }
   if (message.selection !== selection) { status('Selection changed. Prepare a new export.'); return }

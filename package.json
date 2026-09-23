@@ -9,15 +9,18 @@
   ],
   "scripts": {
     "package:plugin": "node scripts/package-plugin.mjs",
+    "build:auth": "node scripts/build-auth.mjs",
+    "deploy:auth": "npm run build:auth && npx firebase-tools deploy --only hosting --project figdoc-e0f98",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run start -w server",
     "test": "npm run test -w server",
-    "check": "npm run lint -w client && npm run test -w server && npm run build -w client"
+    "check": "npm run lint -w client && npm run package:plugin && npm run test -w server && npm run build:auth && npm run build -w client"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "firebase": "^12.19.0"
   },
   "engines": {
     "node": ">=20"

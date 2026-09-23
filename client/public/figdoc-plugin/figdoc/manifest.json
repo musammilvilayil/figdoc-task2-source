@@ -3,7 +3,16 @@
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
-  "editorType": ["figma"],
+  "editorType": [
+    "figma"
+  ],
   "documentAccess": "dynamic-page",
-  "networkAccess": { "allowedDomains": ["none"] }
+  "networkAccess": {
+    "allowedDomains": [
+      "https://figdoc-e0f98.firebaseapp.com",
+      "https://identitytoolkit.googleapis.com",
+      "https://securetoken.googleapis.com"
+    ],
+    "reasoning": "Google sign-in via Firebase Authentication and the hosted Figdoc sign-in page. Design exports stay local."
+  }
 }
