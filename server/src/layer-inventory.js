@@ -22,11 +22,17 @@ function describe(value) {
   if (typeof value === 'object') return Object.entries(value).map(([key, item]) => `${label(key)}: ${describe(item)}`).join('\n') || 'None'
   return String(value)
 }
-export function layerBlocks(layers = []) {
+export function layerBlocks(layers = [], previews = []) {
   if (!layers.length) return []
   const blocks = [{ kind: 'h1', text: 'Complete layer inventory' }, { kind: 'body', text: `${layers.length} layers in the selected scope, including nested frames, groups, shapes, text and hidden layers. Coordinates and dimensions use Figma design units. Image references identify assets, not public download URLs. Preview limits do not limit this inventory.` }]
   for (const [index, layer] of layers.entries()) {
     blocks.push({ kind: 'h2', text: `${index + 1}. ${layer.name}` }, { kind: 'meta', text: layer.path })
+    const picture = previews.find(preview => preview.id === layer.id && preview.kind === 'image-layer')
+    if (picture) {
+      const scale = Math.min(600 / picture.width, 350 / picture.height, 1)
+      blocks.push({ kind: 'image', data: picture.data, width: Math.max(1, Math.round(picture.width * scale)), height: Math.max(1, Math.round(picture.height * scale)) })
+      blocks.push({ kind: 'meta', text: 'Image layer picture as rendered in Figma' })
+    }
     const rows = [['Layer ID', layer.id], ['Type', layer.type], ['Parent ID', layer.parentId || 'None'], ['Depth', String(layer.depth)], ['Visible including ancestors', String(layer.visible)], ['Child IDs', layer.childIds.join(', ') || 'None'], ...Object.entries(layer.properties).map(([key, value]) => [label(key), describe(value)])]
     // Split large property strings into paragraphs so a single table row cannot overflow a page.
     const short = rows.filter(([, value]) => value.length <= 1200)

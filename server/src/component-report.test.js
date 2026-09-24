@@ -25,3 +25,15 @@ test('component template preserves editable copy, previews and explicit heading/
 test('empty selections cannot generate a template-only document', () => {
  assert.throws(() => componentBlocks({ source: { name: 'Empty' }, content: [], previews: [] }), /No text or previews/)
 })
+
+
+test('nested image picture appears directly alongside its layer details', async () => {
+ const doc = {source:{name:'Pictures'},content:[],layers:[{id:'image',name:'Product photo',path:'Frame / Product photo',type:'RECTANGLE',parentId:'frame',depth:1,visible:true,childIds:[],properties:{}}],previews:[{id:'image',name:'Product photo',page:'Page',kind:'image-layer',width:400,height:200,data:png}]}
+ const blocks=componentBlocks(doc)
+ const heading=blocks.findIndex(block=>block.text==='1. Product photo')
+ assert.equal(blocks[heading+2].kind,'image')
+ assert.equal(blocks[heading+2].data,png)
+ const zip=await JSZip.loadAsync(await toDocx(doc,false,blocks))
+ assert.match(await zip.file('word/document.xml').async('string'),/Image layer picture as rendered in Figma/)
+ assert.ok(pdfDefinition(doc,blocks).content.some(item=>item.image===png))
+})

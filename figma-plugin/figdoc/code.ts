@@ -65,29 +65,40 @@ figma.ui.onmessage = async (message: { type: string }) => {
       if (!result.document) throw new Error('Figma could not export this selection.')
       children.push(hydrate(result.document, node))
     }
-    const previews: { id: string, name: string, page: string, width: number, height: number, data: string }[] = []
-    const imageAssets: { name: string, sectionId: string }[] = []
+    const previews: { id: string, name: string, page: string, width: number, height: number, data: string, kind?: string }[] = []
+    const imageAssets: { id: string, name: string, sectionId: string }[] = []
     const previewWarnings: string[] = []
     let imageBytes = 0
-    async function collect(node: SceneNode, sectionId: string) {
+    async function collect(node: SceneNode, sectionId: string, imagesOnly: boolean) {
       const structural = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type)
       const owner = structural || roots.includes(node) ? node.id : sectionId
-      if ('fills' in node && Array.isArray(node.fills) && node.fills.some(paint => paint.type === 'IMAGE')) imageAssets.push({ name: node.name, sectionId: owner })
-      if ((structural || roots.includes(node)) && 'exportAsync' in node && node.width > 0 && node.height > 0) {
+      const isImage = 'fills' in node && Array.isArray(node.fills) && node.fills.some(paint => paint.type === 'IMAGE')
+      if (isImage && imagesOnly) imageAssets.push({ id: node.id, name: node.name, sectionId: owner })
+      if ((imagesOnly ? isImage : (structural || roots.includes(node)) && !isImage) && 'exportAsync' in node && node.width > 0 && node.height > 0) {
         if (previews.length < 40 && imageBytes < 5 * 1024 * 1024) {
           try {
             const scale = Math.min(900 / node.width, 650 / node.height, 1)
             const bytes = await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } })
             if (imageBytes + bytes.length <= 5 * 1024 * 1024) {
               imageBytes += bytes.length
-              previews.push({ id: node.id, name: node.name, page: page.name, width: node.width * scale, height: node.height * scale, data: 'data:image/png;base64,' + figma.base64Encode(bytes) })
-            } else previewWarnings.push('Preview omitted due to export size: ' + node.name)
-          } catch { previewWarnings.push('Preview unavailable: ' + node.name) }
-        } else previewWarnings.push('Preview omitted due to export limit: ' + node.name)
+              previews.push({ id: node.id, name: node.name, page: page.name, width: node.width * scale, height: node.height * scale, data: 'data:image/png;base64,' + figma.base64Encode(bytes), kind: isImage ? 'image-layer' : 'component' })
+            } else {
+              if (isImage) throw new Error('Image size limit reached. Select fewer frames so every image can be included.')
+              previewWarnings.push('Preview omitted due to export size: ' + node.name)
+            }
+          } catch (error) {
+            if (isImage) throw new Error('Could not include picture for ' + node.name + '. Select fewer layers or check that this image layer can be exported. ' + (error instanceof Error ? error.message : ''))
+            previewWarnings.push('Preview unavailable: ' + node.name)
+          }
+        } else {
+          if (isImage) throw new Error('Image limit reached. Export fewer frames at a time to include every picture.')
+          previewWarnings.push('Preview omitted due to export limit: ' + node.name)
+        }
       }
-      if ('children' in node) for (const child of node.children) await collect(child, owner)
+      if ('children' in node) for (const child of node.children) await collect(child, owner, imagesOnly)
     }
-    for (const node of roots) await collect(node, node.id)
+    for (const node of roots) await collect(node, node.id, true)
+    for (const node of roots) await collect(node, node.id, false)
     const payload = {
       previews, imageAssets, previewWarnings,
       format: 'figdoc-plugin', version: 1,

@@ -36,7 +36,7 @@ export function componentBlocks(doc) {
 
   }
 
-  for (const preview of doc.previews || []) if (!groups.has(preview.id)) groups.set(preview.id, { name: preview.name, page: preview.page, items: [] })
+  for (const preview of doc.previews || []) if (preview.kind !== 'image-layer' && !groups.has(preview.id)) groups.set(preview.id, { name: preview.name, page: preview.page, items: [] })
 
   for (const [id, group] of groups) {
 
@@ -78,7 +78,7 @@ export function componentBlocks(doc) {
 
   if (doc.previewWarnings?.length) blocks.push({ kind: 'h1', text: 'Export notes' }, ...doc.previewWarnings.map(text => ({ kind: 'body', text })))
 
-  blocks.push(...layerBlocks(doc.layers))
+  blocks.push(...layerBlocks(doc.layers, doc.previews))
   return blocks
 
 }

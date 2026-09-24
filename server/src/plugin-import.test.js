@@ -44,13 +44,14 @@ test('selected bitmap gets a preview and missing REST text is recovered from liv
  const messages = []
  const bitmap = { id: 'b', type: 'RECTANGLE', name: 'Screen image', width: 300, height: 600, fills: [{type:'IMAGE'}], exportAsync: async ({format}) => format === 'PNG' ? png : {document:{id:'b',type:'RECTANGLE',name:'Screen image'}} }
  const text = { id: 't', type: 'TEXT', name: 'H1 title', characters: 'Track your nutrition', fontSize: 32, fontName: {family:'Inter'} }
- const frame = { id: 'f', type: 'FRAME', name: 'Home', children: [text], exportAsync: async () => ({document:{id:'f',type:'FRAME',name:'Home'}}) }
- const figma = { currentPage: {id:'p',name:'Screens',selection:[bitmap,frame]}, root:{name:'Nutrition'}, showUI(){},on(){},base64Encode: bytes => Buffer.from(bytes).toString('base64'),ui:{postMessage: message => messages.push(message)} }
+ const frame = { id: 'f', type: 'FRAME', name: 'Home', children: [text,bitmap], exportAsync: async () => ({document:{id:'f',type:'FRAME',name:'Home'}}) }
+ const figma = { currentPage: {id:'p',name:'Screens',selection:[frame]}, root:{name:'Nutrition'}, showUI(){},on(){},base64Encode: bytes => Buffer.from(bytes).toString('base64'),ui:{postMessage: message => messages.push(message)} }
  vm.runInNewContext(await readFile(new URL('../../figma-plugin/code.js', import.meta.url),'utf8'),{figma,__html__:''})
  await figma.ui.onmessage({type:'export'})
  assert.equal(messages.at(-1).type,'result')
  const doc=importPlugin(JSON.parse(messages.at(-1).json))
  assert.equal(doc.content[0].content,'Track your nutrition')
  assert.equal(doc.previews[0].id,'b')
- assert.equal(doc.imageAssets[0].sectionId,'b')
+ assert.equal(doc.imageAssets[0].sectionId,'f')
+ assert.equal(doc.previews[0].kind,'image-layer')
 })
