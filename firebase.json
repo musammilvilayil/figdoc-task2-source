@@ -1,4 +1,5 @@
 {
+  "database": { "instance": "figdoc-e0f98-default-rtdb", "rules": "database.rules.json" },
   "hosting": {
     "site": "figdoc-e0f98",
     "public": "auth-dist",

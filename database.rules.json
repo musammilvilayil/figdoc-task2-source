@@ -1,0 +1,17 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "handoffs": {
+      "$nonce": {
+        ".read": "$nonce.matches(/^[A-Za-z0-9_-]{43}$/) && (!data.exists() || data.child('expires').val() > now || (auth != null && data.child('uid').val() === auth.uid))",
+        ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && $nonce.matches(/^[A-Za-z0-9_-]{43}$/) && ((!newData.exists() && (!data.exists() || data.child('uid').val() === auth.uid)) || (!data.exists() && newData.child('uid').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['uid', 'expires', 'code'])",
+        "uid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+        "expires": { ".validate": "newData.isNumber() && newData.val() > now && newData.val() <= now + 600000" },
+        "code": { ".validate": "newData.isString() && newData.val().length > 100 && newData.val().length < 20000 && newData.val().beginsWith('FIGDOC1.')" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

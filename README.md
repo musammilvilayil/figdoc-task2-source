@@ -2,7 +2,7 @@
 
 ## Figma plugin
 
-The plugin uses managed Firebase Google sign-in and local Word/PDF/JSON exports. It does not need the Express server described below. See [plugin setup and deployment](figma-plugin/README.md). Browser sign-in returns an encrypted connection code to paste into Figma Desktop; no database relay is required.
+The plugin uses managed Firebase Google sign-in and local Word/PDF/JSON exports. It does not need the Express server described below. See [plugin setup and deployment](figma-plugin/README.md). Google sign-in connects automatically through an encrypted, temporary Firebase Realtime Database handoff. No localhost or self-managed server is required.
 
 Figdoc converts a Figma file (or one selected frame) into an editable content document. It extracts copy, page/section context, typography, colors, and component usage, then exports the result as Markdown or JSON.
 

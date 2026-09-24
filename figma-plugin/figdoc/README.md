@@ -1,28 +1,33 @@
-# Figdoc — Google sign-in and document handoff
+# Figdoc — quick setup
 
-Select Figma layers and export editable Word, PDF or plugin JSON. Google sign-in is required. The plugin uses Firebase Authentication and a static Firebase Hosting page; it needs no localhost, Express server, Firestore, Realtime Database, Cloud Functions or separately managed backend.
+## Install once in Figma Desktop
 
-## Use in Figma Desktop or browser
+1. Open Plugins > Development > Import plugin from manifest.
+2. Select manifest.json in this Figdoc folder.
+3. Open Figdoc from Plugins > Development.
 
-Register a development plugin in Figma and copy code.js and ui.html into its folder. Merge this manifest with the generated manifest while keeping Figma's assigned plugin id. The source manifest has no assigned plugin ID.
+The folder is ready to import. No commands, file editing or separate server are needed. Its plugin ID comes from the existing registration in this repository.
 
-1. Click Continue with Google in the plugin. This opens https://figdoc-e0f98.firebaseapp.com/ with a request specific to this plugin session.
-2. Sign in with Google on that page and click Copy connection code.
-3. Return to the plugin, paste the code and click Connect.
-4. Select frames, click Prepare document, then download Word, PDF or JSON.
+## Use
 
-The manual copy/paste step supports Figma Desktop, whose external browser cannot send a popup message back to the plugin. It avoids a server or database relay. Codes expire after ten minutes, work only with the originating plugin instance, and are consumed once. Closing the plugin signs out. Use 1. Access > Sign out to clear the session and prepared exports manually.
+1. Click Continue with Google and choose your Google account in the browser.
+2. Wait for Connected, then return to Figma. No code copying or pasting.
+3. Select frames, click Prepare document and download Word or PDF.
 
-Sign-in and preparation require internet access to verify the Google session. Export rendering and design content remain local. No design content is uploaded to Firebase. Firebase Authentication stores the user's account information as part of its managed authentication service.
+Keep the sign-in browser page open until it says Connected. If you close it early, click Cancel sign-in in the plugin and try again. Closing the plugin signs out; 1. Access > Sign out also clears prepared exports.
 
-## Development and deployment
+## Managed services and privacy
 
-Run npm ci, npm run package:plugin, and npm run check from the repository root. Edit figma-plugin/figdoc/code.ts for the controller, ui-entry.js / auth-ui.js for UI behavior, ui-template.html for appearance, and server/src/report.js for report layout. Generated bundles are overwritten on build.
+Firebase Authentication handles Google accounts. Firebase Hosting serves the sign-in page. Firebase Realtime Database temporarily relays an encrypted sign-in response to the initiating plugin. No design text, images or documents are stored there.
 
-The public Firebase configuration is in figma-plugin/firebase-config.js. Google must be enabled in Firebase Authentication, with the project's web.app and firebaseapp.com domains authorized. Never add service-account keys or OAuth client secrets to this repository.
+The relay is encrypted using Web Crypto ECDH P-256 and AES-GCM, bound to a random 256-bit request identifier, and expires after ten minutes. Database rules deny listing, anonymous writes, overwrites, expired writes and unknown fields. Only the Google-authenticated owner can create or delete a record. The encrypted record is readable only through its unguessable request path while valid. The plugin deletes it after login; the browser also schedules deletion on disconnect and timeout. Firebase controls disconnect detection timing.
 
-The hosted sign-in source is in auth-site/. Run npm run build:auth, then authenticate the official Firebase CLI using npx firebase-tools login --no-localhost. Run npm run deploy:auth to publish only the static hosting site for project figdoc-e0f98. No database or function deployment is configured. Build success does not imply the site is deployed or that live Google sign-in was tested.
+Plugin tokens stay in memory. The hosted browser temporarily uses session storage through Google redirect and clears authentication after completion. Internet access is required for sign-in and preparation. The controller verifies the Firebase account before exporting; exports render locally. As with all open-source plugins, someone modifying the source can remove a local login gate.
 
-The handoff uses Web Crypto ECDH P-256 and AES-GCM. The URL fragment contains only the request nonce, expiry and public key; it is removed from browser history on load. The Google credential is encrypted for the initiating plugin, then exchanged through Firebase's SDK. Plugin tokens stay in memory. The hosted page uses browser-session persistence during the Google redirect, then signs out once the connection code has been generated. The controller verifies the Firebase ID token with Google before allowing exports, including after refresh. Authentication is a gate for the distributed plugin, not DRM against someone modifying this open-source code.
+## Development
 
-Selection changes, failed imports and sign-out invalidate previous prepared exports. Selections above 9 MB must be split. Exports describe actual design text and metadata; they do not recreate screenshots or transcribe image text. PDF font coverage remains the shared report engine's coverage.
+Run npm ci, then npm run check. This builds the plugin and hosted page and runs the tests. Source files are figma-plugin/figdoc/code.ts, figma-plugin/auth-ui.js, figma-plugin/relay.js, figma-plugin/ui-entry.js, figma-plugin/ui-template.html and auth-site/.
+
+Public Firebase configuration is in figma-plugin/firebase-config.js; never add OAuth client secrets or service-account keys. Rules are in database.rules.json. To deploy, run npm run build:auth then npx firebase-tools deploy --only database,hosting --project figdoc-e0f98. Database and hosting use the project's Spark plan quotas; no billing upgrade was made.
+
+Selections above 9 MB must be split. Selection changes, failed imports and sign-out invalidate prepared exports. Existing PDF font coverage is unchanged.
