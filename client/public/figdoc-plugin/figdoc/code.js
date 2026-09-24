@@ -13,8 +13,96 @@
     try {
       let hydrate2 = function(raw, live) {
         const result = { ...raw, id: live.id, name: live.name || raw?.name, type: live.type || raw?.type };
+        const properties = [
+          "visible",
+          "locked",
+          "opacity",
+          "blendMode",
+          "x",
+          "y",
+          "width",
+          "height",
+          "rotation",
+          "absoluteBoundingBox",
+          "relativeTransform",
+          "constraints",
+          "fills",
+          "strokes",
+          "strokeWeight",
+          "strokeAlign",
+          "strokeTopWeight",
+          "strokeRightWeight",
+          "strokeBottomWeight",
+          "strokeLeftWeight",
+          "dashPattern",
+          "cornerRadius",
+          "topLeftRadius",
+          "topRightRadius",
+          "bottomLeftRadius",
+          "bottomRightRadius",
+          "effects",
+          "layoutMode",
+          "layoutWrap",
+          "layoutSizingHorizontal",
+          "layoutSizingVertical",
+          "primaryAxisAlignItems",
+          "counterAxisAlignItems",
+          "itemSpacing",
+          "counterAxisSpacing",
+          "paddingTop",
+          "paddingRight",
+          "paddingBottom",
+          "paddingLeft",
+          "layoutAlign",
+          "layoutGrow",
+          "layoutPositioning",
+          "clipsContent",
+          "minWidth",
+          "maxWidth",
+          "minHeight",
+          "maxHeight",
+          "componentProperties",
+          "variantProperties",
+          "reactions",
+          "boundVariables",
+          "exportSettings",
+          "description",
+          "isMask",
+          "maskType",
+          "booleanOperation",
+          "textAlignHorizontal",
+          "textAlignVertical",
+          "textAutoResize",
+          "letterSpacing",
+          "lineHeight",
+          "paragraphSpacing",
+          "textCase",
+          "textDecoration"
+        ];
+        const unavailable = [];
+        for (const key of properties) {
+          if (!(key in live)) continue;
+          try {
+            const value = live[key];
+            if (typeof value === "symbol") {
+              unavailable.push(key + ": mixed values");
+              continue;
+            }
+            if (value !== void 0) result[key] = JSON.parse(JSON.stringify(value));
+          } catch {
+            unavailable.push(key + ": unavailable");
+          }
+        }
+        if (unavailable.length) result.extractionNotes = unavailable;
         if (live.type === "TEXT") {
           result.characters = live.characters;
+          if (typeof live.getStyledTextSegments === "function") {
+            try {
+              result.textSegments = live.getStyledTextSegments(["fontName", "fontSize", "fontWeight", "fills", "textDecoration", "textCase", "letterSpacing", "lineHeight", "hyperlink"]);
+            } catch {
+              result.extractionNotes = [...result.extractionNotes || [], "Styled text segments unavailable"];
+            }
+          }
           const font = live.fontName;
           result.style = {
             ...raw?.style,

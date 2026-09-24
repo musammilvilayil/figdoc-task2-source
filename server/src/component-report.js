@@ -1,3 +1,4 @@
+import { layerBlocks } from './layer-inventory.js'
 // Component content template based on the user's supplied reference.
 
 const value = text => typeof text === 'string' && text.trim() ? text : 'Not provided'
@@ -5,7 +6,7 @@ const value = text => typeof text === 'string' && text.trim() ? text : 'Not prov
 const fields = rows => ({ kind: 'table', reference: true, headers: ['Field', 'Value'], widths: [30, 70], rows: rows.map(([key, val]) => [key, value(val)]) })
 
 export function componentBlocks(doc) {
-  if (!doc.content?.length && !doc.previews?.length) throw new Error('No text or previews were captured. Select the app screen frame in Figma, then prepare again.')
+  if (!doc.content?.length && !doc.previews?.length && !doc.layers?.length) throw new Error('No text or previews were captured. Select the app screen frame in Figma, then prepare again.')
 
   const blocks = [
 
@@ -77,6 +78,7 @@ export function componentBlocks(doc) {
 
   if (doc.previewWarnings?.length) blocks.push({ kind: 'h1', text: 'Export notes' }, ...doc.previewWarnings.map(text => ({ kind: 'body', text })))
 
+  blocks.push(...layerBlocks(doc.layers))
   return blocks
 
 }

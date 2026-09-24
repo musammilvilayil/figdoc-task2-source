@@ -1,3 +1,4 @@
+import { layerInventory } from './layer-inventory.js'
 const TEXT_ROLES = [
   [/^(h1|hero|display|title)/i, 'Heading'],
   [/^(h2|h3|heading|subtitle)/i, 'Subheading'],
@@ -139,6 +140,7 @@ export function parseFigmaDocument(file, sourceUrl = '') {
 
   return {
     schemaVersion: '1.0',
+    layers: layerInventory(file.document),
     generatedAt: new Date().toISOString(),
     source: { url: sourceUrl, name: file.name || 'Untitled Figma file', lastModified: file.lastModified || null, version: file.version || null },
     summary: { pages: pages.length, nodes: nodeCount, textItems: textItems.length, components: componentSet.size, colors: colorMap.size },

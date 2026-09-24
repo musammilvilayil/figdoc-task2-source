@@ -33,7 +33,7 @@ for (const format of ['docx', 'pdf', 'json']) $(format).onclick = async () => {
   try {
     const blob = format === 'docx' ? await toDocx(snapshot, true, componentBlocks(snapshot))
       : format === 'pdf' ? await pdfmake.createPdf(pdfDefinition(snapshot, componentBlocks(snapshot))).getBlob()
-      : new Blob([JSON.stringify(source)], { type: 'application/json' })
+      : new Blob([JSON.stringify({ ...source, layers: snapshot.layers })], { type: 'application/json' })
     if (currentRevision !== revision) { status('Selection changed. Prepare a new export.'); return }
     download(blob, format === 'json' ? '.figdoc.json' : '.' + format, snapshot.source.name)
     status(format.toUpperCase() + ' ready. Check your downloads.')
@@ -60,8 +60,8 @@ window.onmessage = event => {
   try {
     if (new Blob([message.json]).size > 16 * 1024 * 1024) throw new Error('Selection exceeds 16 MB. Select fewer frames.')
     payload = JSON.parse(message.json); report = importPlugin(payload)
-    if (!report.content.length && !report.previews?.length) throw new Error('No text or previews captured. Select an app screen frame (not an empty layer), then prepare again.')
-    status((report.previews?.length || 0) + ' previews | ' + report.content.length + ' text items · ' + report.pages.length + ' page(s). Ready to download.')
+    if (!report.content.length && !report.previews?.length && !report.layers?.length) throw new Error('No text or previews captured. Select an app screen frame (not an empty layer), then prepare again.')
+    status((report.layers?.length || 0) + ' layers | ' + (report.previews?.length || 0) + ' previews | ' + report.content.length + ' text items · ' + report.pages.length + ' page(s). Ready to download.')
   } catch (error) { clear(); status(error.message) }
   controls()
 }
