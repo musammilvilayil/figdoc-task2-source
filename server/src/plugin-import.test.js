@@ -37,3 +37,20 @@ test('plugin import rejects other JSON, malformed paint arrays and excessive dep
   for (let i = 0; i < 102; i++) { node.children = [{ id: String(i), type: 'FRAME' }]; node = node.children[0] }
   assert.throws(() => importPlugin({ format: 'figdoc-plugin', version: 1, file }), /too complex/)
 })
+
+
+test('selected bitmap gets a preview and missing REST text is recovered from live nodes', async () => {
+ const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE5kAAAAASUVORK5CYII=', 'base64'))
+ const messages = []
+ const bitmap = { id: 'b', type: 'RECTANGLE', name: 'Screen image', width: 300, height: 600, fills: [{type:'IMAGE'}], exportAsync: async ({format}) => format === 'PNG' ? png : {document:{id:'b',type:'RECTANGLE',name:'Screen image'}} }
+ const text = { id: 't', type: 'TEXT', name: 'H1 title', characters: 'Track your nutrition', fontSize: 32, fontName: {family:'Inter'} }
+ const frame = { id: 'f', type: 'FRAME', name: 'Home', children: [text], exportAsync: async () => ({document:{id:'f',type:'FRAME',name:'Home'}}) }
+ const figma = { currentPage: {id:'p',name:'Screens',selection:[bitmap,frame]}, root:{name:'Nutrition'}, showUI(){},on(){},base64Encode: bytes => Buffer.from(bytes).toString('base64'),ui:{postMessage: message => messages.push(message)} }
+ vm.runInNewContext(await readFile(new URL('../../figma-plugin/code.js', import.meta.url),'utf8'),{figma,__html__:''})
+ await figma.ui.onmessage({type:'export'})
+ assert.equal(messages.at(-1).type,'result')
+ const doc=importPlugin(JSON.parse(messages.at(-1).json))
+ assert.equal(doc.content[0].content,'Track your nutrition')
+ assert.equal(doc.previews[0].id,'b')
+ assert.equal(doc.imageAssets[0].sectionId,'b')
+})

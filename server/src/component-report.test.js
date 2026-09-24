@@ -20,3 +20,8 @@ test('component template preserves editable copy, previews and explicit heading/
  assert.ok(pdfDefinition(doc, blocks).content.some(b => b.image === png))
  assert.throws(() => importPlugin({ ...payload, previews: [{ ...payload.previews[0], data: 'https://example.com/image.png' }] }))
 })
+
+
+test('empty selections cannot generate a template-only document', () => {
+ assert.throws(() => componentBlocks({ source: { name: 'Empty' }, content: [], previews: [] }), /No text or previews/)
+})

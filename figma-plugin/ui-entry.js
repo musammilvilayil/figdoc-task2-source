@@ -60,7 +60,8 @@ window.onmessage = event => {
   try {
     if (new Blob([message.json]).size > 16 * 1024 * 1024) throw new Error('Selection exceeds 16 MB. Select fewer frames.')
     payload = JSON.parse(message.json); report = importPlugin(payload)
-    status(report.content.length + ' text items · ' + report.pages.length + ' page(s). Ready to download.')
+    if (!report.content.length && !report.previews?.length) throw new Error('No text or previews captured. Select an app screen frame (not an empty layer), then prepare again.')
+    status((report.previews?.length || 0) + ' previews | ' + report.content.length + ' text items · ' + report.pages.length + ' page(s). Ready to download.')
   } catch (error) { clear(); status(error.message) }
   controls()
 }

@@ -103,10 +103,10 @@ export function parseFigmaDocument(file, sourceUrl = '') {
       componentSet.set(componentName, entry)
     }
 
-    const nextSection = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE'].includes(node.type)
+    const nextSection = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type)
       ? node.name || sectionName
       : sectionName
-    for (const child of node.children || []) visit(child, [...trail, node.name || node.type], pageName, nextSection, ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE'].includes(node.type) ? node.id : sectionId)
+    for (const child of node.children || []) visit(child, [...trail, node.name || node.type], pageName, nextSection, ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type) ? node.id : sectionId)
   }
 
   for (const page of file.document?.children || []) {

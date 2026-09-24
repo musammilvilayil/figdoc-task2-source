@@ -28,7 +28,7 @@ test('plugin UI invalidates stale and failed selections before downloading', asy
   const parent = { postMessage() {} }, window = {}
   const source = (await readFile(new URL('../../figma-plugin/ui-entry.js', import.meta.url), 'utf8')).replace(/^import [^\r\n]*\r?\n/gm, '')
   let retry
-  vm.runInNewContext(source, { parent, window, setInterval: callback => { retry = callback; return 1 }, clearInterval() {}, document: { getElementById: id => elements.get(id) }, pdfmake: { addVirtualFileSystem() {} }, fonts: {}, Blob, importPlugin: () => ({ content: [], pages: [], source: { name: 'Test' } }) })
+  vm.runInNewContext(source, { parent, window, setInterval: callback => { retry = callback; return 1 }, clearInterval() {}, document: { getElementById: id => elements.get(id) }, pdfmake: { addVirtualFileSystem() {} }, fonts: {}, Blob, importPlugin: () => ({ content: [{ content: 'Example' }], pages: [], source: { name: 'Test' } }) })
   for (let i = 0; i < 9; i++) retry()
   assert.equal(elements.get('retry').hidden, false)
   assert.match(elements.get('selection').textContent, /unavailable/)

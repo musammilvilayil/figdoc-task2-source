@@ -20,21 +20,35 @@ figma.ui.onmessage = async (message: { type: string }) => {
       }
       return true
     })
+    // Repair missing text/children from live nodes rather than silently exporting an empty tree.
+    function hydrate(raw: any, live: SceneNode): any {
+      const result = { ...raw, id: live.id, name: live.name || raw?.name, type: live.type || raw?.type }
+      if (live.type === 'TEXT') {
+        result.characters = live.characters
+        const font = live.fontName
+        result.style = { ...raw?.style,
+          ...(typeof live.fontSize === 'number' ? { fontSize: live.fontSize } : {}),
+          ...(font && typeof font === 'object' ? { fontFamily: font.family } : {}),
+          ...(live.hyperlink && typeof live.hyperlink === 'object' ? { hyperlink: live.hyperlink } : {}) }
+      }
+      if ('children' in live) result.children = live.children.map(child => hydrate(raw?.children?.find((item: any) => item.id === child.id), child))
+      return result
+    }
     const children = []
     for (const node of roots) {
       const result = await node.exportAsync({ format: 'JSON_REST_V1' }) as { document?: unknown }
       if (!result.document) throw new Error('Figma could not export this selection.')
-      children.push(result.document)
+      children.push(hydrate(result.document, node))
     }
     const previews: { id: string, name: string, page: string, width: number, height: number, data: string }[] = []
     const imageAssets: { name: string, sectionId: string }[] = []
     const previewWarnings: string[] = []
     let imageBytes = 0
     async function collect(node: SceneNode, sectionId: string) {
-      const structural = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE'].includes(node.type)
-      const owner = structural ? node.id : sectionId
+      const structural = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type)
+      const owner = structural || roots.includes(node) ? node.id : sectionId
       if ('fills' in node && Array.isArray(node.fills) && node.fills.some(paint => paint.type === 'IMAGE')) imageAssets.push({ name: node.name, sectionId: owner })
-      if (structural && 'exportAsync' in node && node.width > 0 && node.height > 0) {
+      if ((structural || roots.includes(node)) && 'exportAsync' in node && node.width > 0 && node.height > 0) {
         if (previews.length < 40 && imageBytes < 5 * 1024 * 1024) {
           try {
             const scale = Math.min(900 / node.width, 650 / node.height, 1)
