@@ -55,7 +55,7 @@ export function parseFigmaDocument(file, sourceUrl = '') {
     colorMap.get(key).usages.add(usage)
   }
 
-  function visit(node, trail, pageName, sectionName) {
+  function visit(node, trail, pageName, sectionName, sectionId = null) {
     nodeCount += 1
     if (node.visible === false) hiddenCount += 1
     const path = [...trail, node.name || node.type].join(' / ')
@@ -84,6 +84,9 @@ export function parseFigmaDocument(file, sourceUrl = '') {
         page: pageName,
         section: sectionName || 'Ungrouped',
         path,
+        sectionId,
+        headingLevel: /^h[1-6](?:\b|[_-])/i.test(node.name || '') ? node.name.slice(0, 2).toUpperCase() : null,
+        linkUrl: style.hyperlink?.type === 'URL' ? style.hyperlink.url : null,
         style: {
           family: style.fontFamily || 'Unknown',
           weight: style.fontWeight || 400,
@@ -100,10 +103,10 @@ export function parseFigmaDocument(file, sourceUrl = '') {
       componentSet.set(componentName, entry)
     }
 
-    const nextSection = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET'].includes(node.type)
+    const nextSection = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE'].includes(node.type)
       ? node.name || sectionName
       : sectionName
-    for (const child of node.children || []) visit(child, [...trail, node.name || node.type], pageName, nextSection)
+    for (const child of node.children || []) visit(child, [...trail, node.name || node.type], pageName, nextSection, ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE'].includes(node.type) ? node.id : sectionId)
   }
 
   for (const page of file.document?.children || []) {

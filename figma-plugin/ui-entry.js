@@ -1,6 +1,7 @@
 import pdfmake from 'pdfmake/build/pdfmake.js'
 import fonts from 'pdfmake/build/vfs_fonts.js'
 import { importPlugin } from '../server/src/plugin-import.js'
+import { componentBlocks } from '../server/src/component-report.js'
 import { toDocx, pdfDefinition } from '../server/src/report.js'
 
 pdfmake.addVirtualFileSystem(fonts)
@@ -30,8 +31,8 @@ for (const format of ['docx', 'pdf', 'json']) $(format).onclick = async () => {
   const snapshot = report, source = payload, currentRevision = revision
   busy = true; controls(); status('Preparing ' + format.toUpperCase() + '…')
   try {
-    const blob = format === 'docx' ? await toDocx(snapshot, true)
-      : format === 'pdf' ? await pdfmake.createPdf(pdfDefinition(snapshot)).getBlob()
+    const blob = format === 'docx' ? await toDocx(snapshot, true, componentBlocks(snapshot))
+      : format === 'pdf' ? await pdfmake.createPdf(pdfDefinition(snapshot, componentBlocks(snapshot))).getBlob()
       : new Blob([JSON.stringify(source)], { type: 'application/json' })
     if (currentRevision !== revision) { status('Selection changed. Prepare a new export.'); return }
     download(blob, format === 'json' ? '.figdoc.json' : '.' + format, snapshot.source.name)
@@ -57,7 +58,7 @@ window.onmessage = event => {
   if (message.type === 'error') { status(message.message); return }
   if (message.selection !== selection) { status('Selection changed. Prepare a new export.'); return }
   try {
-    if (new Blob([message.json]).size > 9 * 1024 * 1024) throw new Error('Selection exceeds 9 MB. Select fewer frames.')
+    if (new Blob([message.json]).size > 16 * 1024 * 1024) throw new Error('Selection exceeds 16 MB. Select fewer frames.')
     payload = JSON.parse(message.json); report = importPlugin(payload)
     status(report.content.length + ' text items · ' + report.pages.length + ' page(s). Ready to download.')
   } catch (error) { clear(); status(error.message) }

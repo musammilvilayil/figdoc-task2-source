@@ -26,7 +26,31 @@ figma.ui.onmessage = async (message: { type: string }) => {
       if (!result.document) throw new Error('Figma could not export this selection.')
       children.push(result.document)
     }
+    const previews: { id: string, name: string, page: string, width: number, height: number, data: string }[] = []
+    const imageAssets: { name: string, sectionId: string }[] = []
+    const previewWarnings: string[] = []
+    let imageBytes = 0
+    async function collect(node: SceneNode, sectionId: string) {
+      const structural = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE'].includes(node.type)
+      const owner = structural ? node.id : sectionId
+      if ('fills' in node && Array.isArray(node.fills) && node.fills.some(paint => paint.type === 'IMAGE')) imageAssets.push({ name: node.name, sectionId: owner })
+      if (structural && 'exportAsync' in node && node.width > 0 && node.height > 0) {
+        if (previews.length < 40 && imageBytes < 5 * 1024 * 1024) {
+          try {
+            const scale = Math.min(900 / node.width, 650 / node.height, 1)
+            const bytes = await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } })
+            if (imageBytes + bytes.length <= 5 * 1024 * 1024) {
+              imageBytes += bytes.length
+              previews.push({ id: node.id, name: node.name, page: page.name, width: node.width * scale, height: node.height * scale, data: 'data:image/png;base64,' + figma.base64Encode(bytes) })
+            } else previewWarnings.push('Preview omitted due to export size: ' + node.name)
+          } catch { previewWarnings.push('Preview unavailable: ' + node.name) }
+        } else previewWarnings.push('Preview omitted due to export limit: ' + node.name)
+      }
+      if ('children' in node) for (const child of node.children) await collect(child, owner)
+    }
+    for (const node of roots) await collect(node, node.id)
     const payload = {
+      previews, imageAssets, previewWarnings,
       format: 'figdoc-plugin', version: 1,
       file: { name: figma.root.name, document: { id: 'document', type: 'DOCUMENT', children: [
         { id: page.id, name: page.name, type: 'CANVAS', children }

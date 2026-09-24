@@ -1,4 +1,4 @@
-import { Document, HeadingLevel, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx'
+import { Document, HeadingLevel, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, ImageRun } from 'docx'
 
 
 function invalid() {
@@ -146,11 +146,12 @@ export function exportBlocks(doc) {
   return blocks
 }
 
-export async function toDocx(doc, asBlob = false) {
+export async function toDocx(doc, asBlob = false, blocks = exportBlocks(doc)) {
   const headings = { title: HeadingLevel.TITLE, h1: HeadingLevel.HEADING_1, h2: HeadingLevel.HEADING_2, h3: HeadingLevel.HEADING_3 }
   const sizes = { title: 44, subtitle: 28, h1: 32, h2: 26, h3: 23, label: 21, body: 21, meta: 17 }
   const border = { style: BorderStyle.SINGLE, size: 4, color: 'D9D9D9' }
-  const children = exportBlocks(doc).map((block) => {
+  const children = blocks.map((block) => {
+    if (block.kind === 'image') return new Paragraph({ spacing: { after: 140 }, children: [new ImageRun({ type: 'png', data: Uint8Array.from(atob(block.data.split(',')[1]), c => c.charCodeAt(0)), transformation: { width: block.width, height: block.height } })] })
     if (block.kind === 'table') return new Table({
       width: { size: 9706, type: WidthType.DXA },
       columnWidths: block.widths.map(width => Math.round(9706 * width / 100)),
@@ -160,8 +161,8 @@ export async function toDocx(doc, asBlob = false) {
         children: row.map((value, column) => new TableCell({
           width: { size: Math.round(9706 * block.widths[column] / 100), type: WidthType.DXA },
           margins: { top: 75, bottom: 75, left: 110, right: 110 },
-          shading: { fill: index === 0 ? '303844' : index % 2 ? 'FFFFFF' : 'F4F5F7' },
-          children: [new Paragraph({ spacing: { after: 0, line: 250 }, children: String(value).split('\n').map((line, i) => new TextRun({ text: line, break: i ? 1 : undefined, size: 19, bold: index === 0, color: index === 0 ? 'FFFFFF' : '202020' })) })],
+          shading: { fill: index === 0 ? (block.reference ? 'F0F3F6' : '303844') : index % 2 ? 'FFFFFF' : 'F4F5F7' },
+          children: [new Paragraph({ spacing: { after: 0, line: 250 }, children: String(value).split('\n').map((line, i) => new TextRun({ text: line, break: i ? 1 : undefined, size: 19, bold: index === 0, color: index === 0 ? (block.reference ? '2C3E50' : 'FFFFFF') : '202020' })) })],
         })),
       })),
     })
@@ -183,13 +184,12 @@ export async function toDocx(doc, asBlob = false) {
   }))
 }
 
-export function pdfDefinition(doc) {
-  const blocks = exportBlocks(doc)
+export function pdfDefinition(doc, blocks = exportBlocks(doc)) {
   return {
     info: { title: doc.source.name, author: 'Figdoc' },
     pageSize: 'A4', pageMargins: [55, 48, 55, 48],
     defaultStyle: { font: 'Roboto', fontSize: 10, lineHeight: 1.1, color: '#202020' },
-    content: blocks.map((block) => block.kind === 'table' ? { unbreakable: block.rows.length <= 6 && block.rows.every(row => row.every(cell => cell.length < 100)), margin: [0, 2, 0, 8], fontSize: 9, table: { headerRows: 1, widths: block.widths.map(width => (485 - block.widths.length * 14.5 - .5) * width / 100), body: [block.headers.map(value => ({ text: value, bold: true, color: '#ffffff', fillColor: '#303844' })), ...(block.rows.length ? block.rows : [block.headers.map((_, i) => i === 0 ? 'No entries' : '')])] }, layout: { hLineColor: () => '#D9D9D9', vLineColor: () => '#D9D9D9', hLineWidth: () => .5, vLineWidth: () => .5, paddingLeft: () => 7, paddingRight: () => 7, paddingTop: () => 4, paddingBottom: () => 4, fillColor: row => row > 0 && row % 2 === 0 ? '#F4F5F7' : null } } : ({ text: block.text || ' ', style: block.kind, headlineLevel: ['h1', 'h2', 'h3', 'label'].includes(block.kind) ? 1 : undefined })).reduce((result, node) => {
+    content: blocks.map((block) => block.kind === 'image' ? { image: block.data, fit: [485, 290], margin: [0, 5, 0, 12] } : block.kind === 'table' ? { unbreakable: block.rows.length <= 6 && block.rows.every(row => row.every(cell => cell.length < 100)), margin: [0, 2, 0, 8], fontSize: 9, table: { headerRows: 1, widths: block.widths.map(width => (485 - block.widths.length * 14.5 - .5) * width / 100), body: [block.headers.map(value => ({ text: value, bold: true, color: block.reference ? '#2c3e50' : '#ffffff', fillColor: block.reference ? '#f0f3f6' : '#303844' })), ...(block.rows.length ? block.rows : [block.headers.map((_, i) => i === 0 ? 'No entries' : '')])] }, layout: { hLineColor: () => '#D9D9D9', vLineColor: () => '#D9D9D9', hLineWidth: () => .5, vLineWidth: () => .5, paddingLeft: () => 7, paddingRight: () => 7, paddingTop: () => 4, paddingBottom: () => 4, fillColor: row => row > 0 && row % 2 === 0 ? '#F4F5F7' : null } } : ({ text: block.text || ' ', style: block.kind, headlineLevel: ['h1', 'h2', 'h3', 'label'].includes(block.kind) ? 1 : undefined })).reduce((result, node) => {
       const previous = result[result.length - 1]
       if (node.style === 'meta' && previous?.stack && previous.stack.some(item => item.style === 'label')) { previous.stack.push(node); return result }
       const heading = previous && ['h1', 'h2', 'h3', 'label'].includes(previous.style)
