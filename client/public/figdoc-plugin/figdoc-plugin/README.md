@@ -10,7 +10,7 @@ The folder is ready to import. No commands, file editing or separate server are 
 
 ## Use
 
-1. Click Continue with Google and choose your Google account in the browser.
+1. Choose Continue with Google or Continue as guest. Guest opens the document page immediately. Google opens your browser to choose an account.
 2. Wait for Connected, then return to Figma. No code copying or pasting.
 3. Select frames, click Prepare document and download Word or PDF.
 
@@ -22,7 +22,7 @@ Firebase Authentication handles Google accounts. Firebase Hosting serves the sig
 
 The relay is encrypted using Web Crypto ECDH P-256 and AES-GCM, bound to a random 256-bit request identifier, and expires after ten minutes. Database rules deny listing, anonymous writes, overwrites, expired writes and unknown fields. Only the Google-authenticated owner can create or delete a record. The encrypted record is readable only through its unguessable request path while valid. The plugin deletes it after login; the browser also schedules deletion on disconnect and timeout. Firebase controls disconnect detection timing.
 
-Plugin tokens stay in memory. The hosted browser temporarily uses session storage through Google redirect and clears authentication after completion. Internet access is required for sign-in and preparation. The controller verifies the Firebase account before exporting; exports render locally. As with all open-source plugins, someone modifying the source can remove a local login gate.
+Plugin tokens stay in memory. The hosted browser temporarily uses session storage through Google redirect and clears authentication after completion. Google sessions require internet access for sign-in and preparation. Guest sessions export without Google or Firebase. The sessionMode variable tracks signed-out, google or guest access. The controller verifies Google sessions before exporting; exports render locally. As with all open-source plugins, someone modifying the source can remove a local login gate.
 
 ## Development
 

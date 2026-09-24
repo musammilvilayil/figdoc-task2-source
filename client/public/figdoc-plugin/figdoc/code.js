@@ -13,7 +13,7 @@
   // figma-plugin/figdoc/code.ts
   var busy = false;
   var authRevision = 0;
-  var signedIn = false;
+  var sessionMode = "signed-out";
   async function verifyGoogle(token) {
     if (typeof token !== "string" || token.length > 15e3) throw new Error("Sign in with Google to continue.");
     const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + firebaseConfig.apiKey, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token }) });
@@ -34,16 +34,22 @@
     }
     if (message.type === "signout") {
       authRevision++;
-      signedIn = false;
+      sessionMode = "signed-out";
+      return;
+    }
+    if (message.type === "guest-login") {
+      authRevision++;
+      sessionMode = "guest";
+      figma.ui.postMessage({ type: "guest-session" });
       return;
     }
     if (message.type === "authenticate") {
       const revision2 = ++authRevision;
-      signedIn = false;
+      sessionMode = "signed-out";
       try {
         const user = await verifyGoogle(message.token);
         if (revision2 !== authRevision) return;
-        signedIn = true;
+        sessionMode = "google";
         figma.ui.postMessage({ type: "authenticated", email: user.email });
       } catch (error) {
         if (revision2 === authRevision) figma.ui.postMessage({ type: "auth-error", message: error instanceof Error ? error.message : "Google sign-in could not be verified." });
@@ -55,10 +61,11 @@
     const revision = authRevision;
     try {
       try {
-        if (!signedIn) throw new Error("Sign in with Google before preparing a document.");
-        await verifyGoogle(message.token);
+        if (sessionMode === "signed-out") throw new Error("Choose Google or guest before preparing a document.");
+        if (sessionMode === "google") await verifyGoogle(message.token);
       } catch (error) {
-        signedIn = false;
+        if (revision !== authRevision) return;
+        sessionMode = "signed-out";
         figma.ui.postMessage({ type: "auth-error", message: error instanceof Error ? error.message : "Unable to verify your Google account. Try again." });
         return;
       }

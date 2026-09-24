@@ -9,6 +9,7 @@ const $ = id => document.getElementById(id)
 let payload = null, report = null, selection = '', busy = false, count = 0, revision = 0
 let connected = false, attempts = 0
 let authenticated = false
+let sessionMode = 'signed-out' // 'google' | 'guest' | 'signed-out'
 const status = message => { $('status').textContent = message }
 function showPage(page) {
   if (!$('auth-page') || !$('workspace-page')) return
@@ -25,7 +26,7 @@ function controls() {
   $('signout').hidden = !authenticated
 }
 const authentication = setupAuth({
-  onSignedOut() { authenticated = false; clear(); showPage('access') },
+  onSignedOut() { authenticated = false; sessionMode = 'signed-out'; clear(); showPage('access') },
   onStatus(message) { $('auth-status').textContent = message },
 })
 if ($('page-access')) $('page-access').onclick = () => showPage('access')
@@ -42,8 +43,8 @@ function download(blob, extension, name) {
 $('export').onclick = async () => {
   if (!authenticated || busy || !count) return
   clear(); busy = true; controls(); status('Reading selected layers…')
-  try { parent.postMessage({ pluginMessage: { type: 'export', token: await authentication.token() } }, '*') }
-  catch (error) { busy = false; authenticated = false; clear(); showPage('access'); $('auth-status').textContent = error.message }
+  try { parent.postMessage({ pluginMessage: { type: 'export', token: sessionMode === 'google' ? await authentication.token() : undefined } }, '*') }
+  catch (error) { busy = false; authenticated = false; sessionMode = 'signed-out'; clear(); showPage('access'); $('auth-status').textContent = error.message }
 }
 for (const format of ['docx', 'pdf', 'json']) $(format).onclick = async () => {
   if (!authenticated || !report || busy) return
@@ -63,13 +64,14 @@ window.onmessage = event => {
   // Figma bridges sandbox messages; event.source is not guaranteed to be parent.
   const message = event.data?.pluginMessage
   if (!message) return
-  if (message.type === 'authenticated') {
+  if (message.type === 'authenticated' || message.type === 'guest-session') {
+    sessionMode = message.type === 'guest-session' ? 'guest' : 'google'
     authenticated = true
-    $('auth-status').textContent = 'Signed in as ' + message.email
+    $('auth-status').textContent = sessionMode === 'guest' ? 'Continuing as guest' : 'Signed in as ' + message.email
     showPage('workspace'); controls(); return
   }
   if (message.type === 'auth-error') {
-    authenticated = false; busy = false; clear(); showPage('access')
+    authenticated = false; sessionMode = 'signed-out'; busy = false; clear(); showPage('access')
     $('auth-status').textContent = message.message; return
   }
   if (message.type === 'selection') {

@@ -38,6 +38,15 @@ test('plugin selection exports once and flows through parser and Word/PDF', asyn
   await figma.ui.onmessage({ type: 'signout' })
   await figma.ui.onmessage({ type: 'export', token: 'test-token' })
   assert.equal(messages.at(-1).type, 'auth-error')
+  valid = false // Guest exports must not call Google verification.
+  page.selection = [frame]
+  await figma.ui.onmessage({ type: 'guest-login' })
+  assert.equal(messages.at(-1).type, 'guest-session')
+  await figma.ui.onmessage({ type: 'export' })
+  assert.equal(messages.at(-1).type, 'result')
+  await figma.ui.onmessage({ type: 'signout' })
+  await figma.ui.onmessage({ type: 'export' })
+  assert.equal(messages.at(-1).type, 'auth-error')
 })
 
 test('plugin import rejects other JSON, malformed paint arrays and excessive depth', () => {

@@ -51,7 +51,11 @@ export function setupAuth({ onSignedOut, onStatus }) {
     onSignedOut()
     parent.postMessage({ pluginMessage: { type: 'signout' } }, '*')
     await signOut(auth)
-    onStatus('Continue with Google to use Figdoc.')
+    onStatus('Choose Google or continue as guest.')
+  }
+  $('guest-login').onclick = async () => {
+    await cancel()
+    parent.postMessage({ pluginMessage: { type: 'guest-login' } }, '*')
   }
   $('cancel-login').onclick = cancel
   $('signout').onclick = cancel

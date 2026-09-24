@@ -1,7 +1,7 @@
 import { firebaseConfig, loginUrl } from '../firebase-config.js'
 let busy = false
 let authRevision = 0
-let signedIn = false
+let sessionMode: 'signed-out' | 'google' | 'guest' = 'signed-out'
 async function verifyGoogle(token: unknown) {
   if (typeof token !== 'string' || token.length > 15000) throw new Error('Sign in with Google to continue.')
   const response = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + firebaseConfig.apiKey, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: token }) })
@@ -21,14 +21,19 @@ figma.ui.onmessage = async (message: { type: string, token?: string, url?: strin
     if (typeof message.url === 'string' && message.url.startsWith(loginUrl + '#') && message.url.length < 4000) figma.openExternal(message.url)
     return
   }
-  if (message.type === 'signout') { authRevision++; signedIn = false; return }
+  if (message.type === 'signout') { authRevision++; sessionMode = 'signed-out'; return }
+  if (message.type === 'guest-login') {
+    authRevision++; sessionMode = 'guest'
+    figma.ui.postMessage({ type: 'guest-session' })
+    return
+  }
   if (message.type === 'authenticate') {
     const revision = ++authRevision
-    signedIn = false
+    sessionMode = 'signed-out'
     try {
       const user = await verifyGoogle(message.token)
       if (revision !== authRevision) return
-      signedIn = true
+      sessionMode = 'google'
       figma.ui.postMessage({ type: 'authenticated', email: user.email })
     } catch (error) {
       if (revision === authRevision) figma.ui.postMessage({ type: 'auth-error', message: error instanceof Error ? error.message : 'Google sign-in could not be verified.' })
@@ -40,10 +45,11 @@ figma.ui.onmessage = async (message: { type: string, token?: string, url?: strin
   const revision = authRevision
   try {
     try {
-      if (!signedIn) throw new Error('Sign in with Google before preparing a document.')
-      await verifyGoogle(message.token)
+      if (sessionMode === 'signed-out') throw new Error('Choose Google or guest before preparing a document.')
+      if (sessionMode === 'google') await verifyGoogle(message.token)
     } catch (error) {
-      signedIn = false
+      if (revision !== authRevision) return
+      sessionMode = 'signed-out'
       figma.ui.postMessage({ type: 'auth-error', message: error instanceof Error ? error.message : 'Unable to verify your Google account. Try again.' })
       return
     }
