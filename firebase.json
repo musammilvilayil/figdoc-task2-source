@@ -1,0 +1,14 @@
+{
+  "database": { "instance": "figdoc-e0f98-default-rtdb", "rules": "database.rules.json" },
+  "hosting": {
+    "site": "figdoc-e0f98",
+    "public": "auth-dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [{"source": "**", "headers": [
+      {"key": "Cache-Control", "value": "no-store"},
+      {"key": "Referrer-Policy", "value": "no-referrer"},
+      {"key": "X-Content-Type-Options", "value": "nosniff"},
+      {"key": "X-Frame-Options", "value": "SAMEORIGIN"}
+    ]}]
+  }
+}

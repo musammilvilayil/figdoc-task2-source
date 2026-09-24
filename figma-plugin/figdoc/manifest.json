@@ -9,10 +9,12 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
-      "none"
+      "https://figdoc-e0f98.firebaseapp.com",
+      "https://identitytoolkit.googleapis.com",
+      "https://securetoken.googleapis.com",
+      "https://figdoc-e0f98-default-rtdb.asia-southeast1.firebasedatabase.app"
     ],
-    "devAllowedDomains": [
-      "http://localhost:5000"
-    ]
-  }
+    "reasoning": "Google sign-in via Firebase Authentication. Realtime Database temporarily relays an encrypted login response to this plugin. Design exports stay local."
+  },
+  "id": "1684128110132396628"
 }

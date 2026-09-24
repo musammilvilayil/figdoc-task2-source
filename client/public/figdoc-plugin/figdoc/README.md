@@ -1,23 +1,33 @@
-# Figdoc Figma plugin
+# Figdoc — quick setup
 
-Export selected layers without a personal access token. No build or dependencies are needed. This is a local development plugin, not a published Community plugin.
+## Install once in Figma Desktop
 
-## Register once in Figma Desktop
+1. Open Plugins > Development > Import plugin from manifest.
+2. Select manifest.json in this Figdoc folder.
+3. Open Figdoc from Plugins > Development.
 
-1. Open a design file in Figma Desktop. Choose Plugins → Development → New plugin.
-2. Create a Figma Design plugin with a custom UI and save its generated files to a new folder.
-3. Copy this package's `code.js` and `ui.html` into that folder, replacing the starter files.
-4. Open the generated `manifest.json`. Keep the `id` assigned by Figma, and replace its other fields with the fields in this package's `manifest.json`. Do not invent an ID.
-5. Run the plugin from Plugins → Development. If necessary, use Import plugin from manifest to select the edited manifest.
+The folder is ready to import. No commands, file editing or separate server are needed. Its plugin ID comes from the existing registration in this repository.
 
 ## Use
 
-1. Select frames or layers and run Figdoc.
-2. Choose Prepare export, then Download .figdoc.json.
-3. Open your Figdoc website. Under Import a design choose Plugin file, select the downloaded file, and choose Create document.
-4. Review/edit the document and use its export menu for Word (.docx), PDF, Markdown, or JSON.
+1. Choose Continue with Google or Continue as guest. Guest opens the document page immediately. Google opens your browser to choose an account.
+2. Wait for Connected, then return to Figma. No code copying or pasting.
+3. Select frames, click Prepare document and download Word or PDF.
 
-Only selected layers and their descendants are included; hidden layers are included. Overlapping parent/child selections are deduplicated. The plugin never modifies the design or makes network requests. Import uploads the file to your Figdoc server and uses the existing document saving workflow. Files above 9 MB must be split into smaller selections. This extracts structured content and styles, not a pixel-perfect rendering or image/OCR transcription.
+Keep the sign-in browser page open until it says Connected. If you close it early, click Cancel sign-in in the plugin and try again. Closing the plugin signs out; 1. Access > Sign out also clears prepared exports.
 
-Figma API reference: https://developers.figma.com/docs/plugins/api/properties/nodes-exportasync/
-Manifest reference: https://developers.figma.com/docs/plugins/manifest/
+## Managed services and privacy
+
+Firebase Authentication handles Google accounts. Firebase Hosting serves the sign-in page. Firebase Realtime Database temporarily relays an encrypted sign-in response to the initiating plugin. No design text, images or documents are stored there.
+
+The relay is encrypted using Web Crypto ECDH P-256 and AES-GCM, bound to a random 256-bit request identifier, and expires after ten minutes. Database rules deny listing, anonymous writes, overwrites, expired writes and unknown fields. Only the Google-authenticated owner can create or delete a record. The encrypted record is readable only through its unguessable request path while valid. The plugin deletes it after login; the browser also schedules deletion on disconnect and timeout. Firebase controls disconnect detection timing.
+
+Plugin tokens stay in memory. The hosted browser temporarily uses session storage through Google redirect and clears authentication after completion. Google sessions require internet access for sign-in and preparation. Guest sessions export without Google or Firebase. The sessionMode variable tracks signed-out, google or guest access. The controller verifies Google sessions before exporting; exports render locally. As with all open-source plugins, someone modifying the source can remove a local login gate.
+
+## Development
+
+Run npm ci, then npm run check. This builds the plugin and hosted page and runs the tests. Source files are figma-plugin/figdoc/code.ts, figma-plugin/auth-ui.js, figma-plugin/relay.js, figma-plugin/ui-entry.js, figma-plugin/ui-template.html and auth-site/.
+
+Public Firebase configuration is in figma-plugin/firebase-config.js; never add OAuth client secrets or service-account keys. Rules are in database.rules.json. To deploy, run npm run build:auth then npx firebase-tools deploy --only database,hosting --project figdoc-e0f98. Database and hosting use the project's Spark plan quotas; no billing upgrade was made.
+
+Selections above 9 MB must be split. Selection changes, failed imports and sign-out invalidate prepared exports. Existing PDF font coverage is unchanged.
