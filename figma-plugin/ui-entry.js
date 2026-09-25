@@ -1,7 +1,8 @@
 import pdfmake from 'pdfmake/build/pdfmake.js'
 import fonts from 'pdfmake/build/vfs_fonts.js'
 import { importPlugin } from '../server/src/plugin-import.js'
-import { componentBlocks } from '../server/src/component-report.js'
+import JSZip from 'jszip'
+import { componentBlocks, assetFilename } from '../server/src/component-report.js'
 import { toDocx, pdfDefinition } from '../server/src/report.js'
 
 pdfmake.addVirtualFileSystem(fonts)
@@ -11,7 +12,7 @@ let connected = false, attempts = 0
 const status = message => { $('status').textContent = message }
 function controls() {
   $('export').disabled = busy || !count
-  for (const id of ['docx', 'pdf', 'json']) $(id).disabled = busy || !report
+  for (const id of ['docx', 'pdf', 'json', 'assets']) $(id).disabled = busy || !report
 }
 controls()
 function clear() { payload = report = null; revision++; controls() }
@@ -26,16 +27,25 @@ $('export').onclick = async () => {
   clear(); busy = true; controls(); status('Reading selected layers…')
   parent.postMessage({ pluginMessage: { type: 'export' } }, '*')
 }
-for (const format of ['docx', 'pdf', 'json']) $(format).onclick = async () => {
+for (const format of ['docx', 'pdf', 'json', 'assets']) $(format).onclick = async () => {
   if (!report || busy) return
   const snapshot = report, source = payload, currentRevision = revision
   busy = true; controls(); status('Preparing ' + format.toUpperCase() + '…')
   try {
-    const blob = format === 'docx' ? await toDocx(snapshot, true, componentBlocks(snapshot))
+    let assetBlob
+    if (format === 'assets') {
+      const zip = new JSZip()
+      const pictures = (snapshot.previews || []).filter(p => p.kind === 'image-layer')
+      if (!pictures.length) throw new Error('No individual image layers in this selection.')
+      pictures.forEach((picture, index) => zip.file(assetFilename(picture, index), picture.data.split(',')[1], { base64: true }))
+      zip.file('README.txt', 'Rendered image-layer previews matching the filenames in the documentation. Images may be downscaled. Verify resolution and permissions before production use.')
+      assetBlob = await zip.generateAsync({ type: 'blob' })
+    }
+    const blob = format === 'assets' ? assetBlob : format === 'docx' ? await toDocx(snapshot, true, componentBlocks(snapshot))
       : format === 'pdf' ? await pdfmake.createPdf(pdfDefinition(snapshot, componentBlocks(snapshot))).getBlob()
       : new Blob([JSON.stringify({ ...source, layers: snapshot.layers })], { type: 'application/json' })
     if (currentRevision !== revision) { status('Selection changed. Prepare a new export.'); return }
-    download(blob, format === 'json' ? '.figdoc.json' : '.' + format, snapshot.source.name)
+    download(blob, format === 'json' ? '.figdoc.json' : format === 'assets' ? '-images.zip' : '.' + format, snapshot.source.name)
     status(format.toUpperCase() + ' ready. Check your downloads.')
   } catch (error) { status('Export failed: ' + error.message) }
   finally { busy = false; controls() }

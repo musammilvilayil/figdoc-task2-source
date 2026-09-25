@@ -24,7 +24,7 @@ test('offline plugin renderers preserve website report tables and long actual co
 })
 
 test('plugin UI invalidates stale and failed selections before downloading', async () => {
-  const elements = new Map(['export', 'docx', 'pdf', 'json', 'status', 'selection', 'retry', 'page-access', 'page-workspace', 'auth-page', 'workspace-page', 'auth-status', 'signout'].map(id => [id, { disabled: true, textContent: '', classList: { toggle() {} } }]))
+  const elements = new Map(['export', 'docx', 'pdf', 'json', 'assets', 'status', 'selection', 'retry', 'page-access', 'page-workspace', 'auth-page', 'workspace-page', 'auth-status', 'signout'].map(id => [id, { disabled: true, textContent: '', classList: { toggle() {} } }]))
   const parent = { postMessage() {} }, window = {}
   const source = (await readFile(new URL('../../figma-plugin/ui-entry.js', import.meta.url), 'utf8')).replace(/^import [^\r\n]*\r?\n/gm, '')
   let retry
