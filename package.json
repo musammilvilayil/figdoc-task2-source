@@ -18,6 +18,8 @@
     "check": "npm run lint -w client && npm run package:plugin && npm run test -w server && npm run build:auth && npm run build -w client"
   },
   "devDependencies": {
+    "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
     "concurrently": "^9.2.1",
     "esbuild": "^0.28.2",
     "firebase": "^12.19.0"

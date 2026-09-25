@@ -19,6 +19,21 @@ export function importPlugin(payload) {
   }
   if (!payload.file.document.children?.length || payload.file.document.children.some(page => page.type !== 'CANVAS')) invalid()
   const result = parseFigmaDocument(payload.file)
+  if (payload.previews !== undefined) {
+    if (!Array.isArray(payload.previews) || payload.previews.length > 40) invalid()
+    for (const preview of payload.previews) {
+      if (!preview || typeof preview.id !== 'string' || typeof preview.name !== 'string' || typeof preview.page !== 'string' || !Number.isFinite(preview.width) || !Number.isFinite(preview.height) || preview.width <= 0 || preview.height <= 0 || typeof preview.data !== 'string' || !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$/.test(preview.data) || preview.data.length > 7 * 1024 * 1024) invalid()
+    }
+    result.previews = payload.previews
+  }
+  if (payload.imageAssets !== undefined) {
+    if (!Array.isArray(payload.imageAssets) || payload.imageAssets.some(item => !item || typeof item.name !== 'string' || typeof item.sectionId !== 'string')) invalid()
+    result.imageAssets = payload.imageAssets
+  }
+  if (payload.previewWarnings !== undefined) {
+    if (!Array.isArray(payload.previewWarnings) || payload.previewWarnings.some(item => typeof item !== 'string')) invalid()
+    result.previewWarnings = payload.previewWarnings
+  }
   result.insights.warnings.push('Imported from a Figma plugin selection. Content outside the selected layers is not included.')
   return result
 }

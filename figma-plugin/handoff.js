@@ -1,5 +1,7 @@
 // The browser encrypts a short-lived Google credential for this plugin instance.
-// Only public keys travel in the URL; no token is stored on a relay or database.
+// Only public keys travel in the URL; the relay holds only encrypted credentials.
+import { p256 } from '@noble/curves/nist.js'
+import { gcm } from '@noble/ciphers/aes.js'
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 export const encode = value => btoa(String.fromCharCode(...new Uint8Array(value))).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
@@ -15,6 +17,15 @@ function validateRequest(request) {
   if (request.v !== 1 || typeof request.nonce !== 'string' || request.nonce.length !== 43 || !Number.isFinite(request.expires) || request.expires <= Date.now() || request.expires > Date.now() + 11 * 60_000) throw new Error('This sign-in request expired. Start again from Figdoc.')
 }
 export async function createRequest() {
+  // Figma's sandbox may expose secure random values without crypto.subtle.
+  if (!globalThis.crypto?.getRandomValues) throw new Error('Secure randomness is unavailable. Update Figma and reopen the plugin.')
+  if (!crypto.subtle) {
+    const privateKey = p256.utils.randomSecretKey()
+    const point = p256.getPublicKey(privateKey, false)
+    const publicKey = { kty: 'EC', crv: 'P-256', x: encode(point.slice(1, 33)), y: encode(point.slice(33, 65)), ext: true }
+    const request = { v: 1, nonce: encode(crypto.getRandomValues(new Uint8Array(32))), expires: Date.now() + 10 * 60_000, publicKey }
+    return { request, privateKey, fragment: pack(request), used: false, portable: true }
+  }
   const pair = await crypto.subtle.generateKey(keyOptions, false, ['deriveKey'])
   const request = { v: 1, nonce: encode(crypto.getRandomValues(new Uint8Array(32))), expires: Date.now() + 10 * 60_000, publicKey: await crypto.subtle.exportKey('jwk', pair.publicKey) }
   return { request, privateKey: pair.privateKey, fragment: pack(request), used: false }
@@ -40,11 +51,24 @@ export async function openCredential(pending, code) {
   if (!code.startsWith('FIGDOC1.') || code.length > 20000) throw new Error('Paste the complete connection code from the Figdoc sign-in page.')
   try {
     const envelope = unpack(code.slice(8))
-    const key = await derive(pending.privateKey, envelope.publicKey)
-    const data = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(envelope.iv), additionalData: encoder.encode(pending.request.nonce) }, key, decode(envelope.data))
+    let data
+    if (pending.portable) {
+      const publicKey = envelope.publicKey
+      if (publicKey.kty !== 'EC' || publicKey.crv !== 'P-256') throw new Error('Invalid key')
+      const x = decode(publicKey.x), y = decode(publicKey.y)
+      if (x.length !== 32 || y.length !== 32) throw new Error('Invalid key')
+      const point = new Uint8Array([4, ...x, ...y])
+      const key = p256.getSharedSecret(pending.privateKey, point, false).slice(1, 33)
+      data = gcm(key, decode(envelope.iv), encoder.encode(pending.request.nonce)).decrypt(decode(envelope.data))
+      key.fill(0)
+    } else {
+      const key = await derive(pending.privateKey, envelope.publicKey)
+      data = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(envelope.iv), additionalData: encoder.encode(pending.request.nonce) }, key, decode(envelope.data))
+    }
     const value = JSON.parse(decoder.decode(data))
     if (value.nonce !== pending.request.nonce || value.expires !== pending.request.expires || typeof value.idToken !== 'string') throw new Error('Invalid credential')
     pending.used = true
+    if (pending.portable) pending.privateKey.fill(0)
     return value.idToken
   } catch { throw new Error('This code does not match this sign-in attempt. Copy the latest code or start again.') }
 }
