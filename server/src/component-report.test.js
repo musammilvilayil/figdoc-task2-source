@@ -10,11 +10,11 @@ test('component template preserves editable copy, previews and explicit heading/
  const doc = importPlugin(payload)
  const blocks = componentBlocks(doc)
  const rows = blocks.filter(b => b.kind === 'table').flatMap(b => b.rows)
- assert.ok(rows.some(r => r[0] === 'Semantic role' && r[1] === 'H1'))
+ assert.ok(rows.some(r => r[0] === 'Heading level' && r[1] === 'H1'))
  assert.ok(rows.some(r => r[0] === 'Link URL' && r[1] === 'https://example.com/'))
  assert.ok(!blocks.some(b => b.text === 'SEO Metadata'))
  assert.ok(blocks.some(b => b.text === 'Website documentation'))
- assert.ok(blocks.some(b => b.text === 'Open items and completion checklist'))
+ assert.ok(blocks.some(b => b.text === 'Page metadata'))
  assert.ok(!blocks.some(b => b.text === 'Design tokens'))
  const zip = await JSZip.loadAsync(await toDocx(doc, false, blocks))
  assert.match(await zip.file('word/document.xml').async('string'), /Actual heading/)
@@ -32,7 +32,7 @@ test('empty selections cannot generate a template-only document', () => {
 test('nested image picture appears directly alongside its layer details', async () => {
  const doc = {source:{name:'Pictures'},content:[],layers:[{id:'image',name:'Product photo',path:'Frame / Product photo',type:'RECTANGLE',parentId:'frame',depth:1,visible:true,childIds:[],properties:{}}],previews:[{id:'image',name:'Product photo',page:'Page',kind:'image-layer',width:400,height:200,data:png}]}
  const blocks=componentBlocks(doc)
- const heading=blocks.findIndex(block=>block.text==='Product photo')
+ const heading=blocks.findIndex(block=>block.kind==='h3'&&block.text==='Product photo')
  assert.equal(blocks[heading+1].kind,'image')
  assert.equal(blocks[heading+1].data,png)
  const zip=await JSZip.loadAsync(await toDocx(doc,false,blocks))
@@ -48,8 +48,23 @@ test('website documentation keeps sections separate and unknown requirements exp
  const blocks=componentBlocks(doc)
  assert.equal(blocks.filter(b=>b.kind==='body'&&b.text==='Buy').length,1)
  assert.equal(blocks.filter(b=>b.kind==='body'&&b.text==='Mobile').length,1)
- assert.ok(blocks.some(b=>b.rows?.some(row=>row.includes('Missing destinations'))))
+ assert.ok(blocks.some(b=>b.rows?.some(row=>row[0]==='Link URL'&&row[1]==='To add')))
  assert.ok(!blocks.some(b=>/Developer specification|Manager review|Complete layer inventory|SEO Metadata/.test(b.text || '')))
  assert.notEqual(assetFilename({name:'Image'},0),assetFilename({name:'Image'},1))
  assert.equal(assetFilename({name:'../photo'},0),'01--photo.png')
+})
+
+
+test('reference sections keep matching pictures and copy together without review boilerplate', () => {
+ const layer=(id,parentId,type,name,visible=true)=>({id,parentId,type,name,visible,properties:{width:100,height:50}})
+ const doc={source:{name:'Home'},layers:[layer('root','page','FRAME','Desktop'),layer('hero','root','FRAME','Hero'),layer('photo','hero','RECTANGLE','Hero photo'),layer('title','hero','TEXT','Title'),layer('cards','root','FRAME','Cards'),layer('cardText','cards','TEXT','Card title'),layer('hidden','cards','GROUP','Hidden',false),layer('hiddenText','hidden','TEXT','Hidden copy')],content:[{id:'title',content:'Hero text',role:'Heading'},{id:'cardText',content:'Card text',role:'Body'},{id:'hiddenText',content:'Do not publish',role:'Body'}],previews:[{id:'photo',name:'Hero photo',kind:'image-layer',width:100,height:50,data:png}]}
+ const blocks=componentBlocks(doc),hero=blocks.findIndex(b=>b.kind==='h2'&&b.text==='Hero'),cards=blocks.findIndex(b=>b.kind==='h2'&&b.text==='Cards')
+ assert.ok(hero>=0&&cards>hero)
+ assert.ok(blocks.slice(hero,cards).some(b=>b.kind==='image'))
+ assert.ok(blocks.slice(hero,cards).some(b=>b.text==='Hero text'))
+ assert.ok(!blocks.slice(hero,cards).some(b=>b.text==='Card text'))
+ assert.equal(blocks.filter(b=>b.text==='Hero text').length,1)
+ assert.ok(blocks.slice(cards).some(b=>b.text==='Card text'))
+ assert.ok(!JSON.stringify(blocks).includes('Do not publish'))
+ assert.ok(!JSON.stringify(blocks).match(/Needs review|Not approved|Open items and completion|Review record|Decision needed/))
 })
