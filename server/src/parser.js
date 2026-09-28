@@ -22,6 +22,8 @@ function classifyText(node, trail = []) {
   const candidate = `${node.name || ''} ${node.style?.fontSize || ''}`
   const namedRole = TEXT_ROLES.find(([pattern]) => pattern.test(candidate))?.[1]
   if (namedRole) return namedRole
+  if ((node.characters || "").trim().split(/\r?\n/).length > 1) return 'Body'
+  if (/^[A-Z][A-Z0-9 &-]{2,49}$/.test((node.characters || "").trim())) return 'Label'
   const size = node.style?.fontSize || 16
   if (size >= 32) return 'Heading'
   if (size >= 22) return 'Subheading'

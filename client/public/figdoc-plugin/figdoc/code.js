@@ -1,9 +1,43 @@
 "use strict";
 (() => {
+  // figma-plugin/selection.js
+  function documentationRoots(selection) {
+    const candidates = selection.map((node) => {
+      let root = node;
+      for (let parent = node.parent; parent && !["CANVAS", "DOCUMENT", "SECTION"].includes(parent.type); parent = parent.parent) {
+        if (["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(parent.type)) root = parent;
+      }
+      return root;
+    });
+    const ids = new Set(candidates.map((node) => node.id));
+    const roots = [...new Map(candidates.map((node) => [node.id, node])).values()].filter((node) => {
+      for (let parent = node.parent; parent; parent = parent.parent) if (ids.has(parent.id)) return false;
+      return true;
+    });
+    const order = (node) => {
+      const path = [];
+      for (let n = node; n.parent; n = n.parent) path.unshift(n.parent.children?.indexOf(n) ?? 0);
+      return path;
+    };
+    return roots.sort((a, b) => {
+      const x = order(a), y = order(b);
+      for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] - y[i];
+      return x.length - y.length;
+    });
+  }
+  function pngDimensions(bytes, fallbackWidth, fallbackHeight) {
+    if (bytes.length >= 24 && bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71) {
+      const read = (offset) => bytes[offset] * 16777216 + bytes[offset + 1] * 65536 + bytes[offset + 2] * 256 + bytes[offset + 3];
+      const width = read(16), height = read(20);
+      if (width > 0 && height > 0) return { width, height };
+    }
+    return { width: Math.max(1, Math.round(fallbackWidth)), height: Math.max(1, Math.round(fallbackHeight)) };
+  }
+
   // figma-plugin/figdoc/code.ts
   var busy = false;
   function selectionStatus() {
-    figma.ui.postMessage({ type: "selection", count: figma.currentPage.selection.length, selection: figma.currentPage.id + ":" + figma.currentPage.selection.map((node) => node.id).sort().join(",") });
+    figma.ui.postMessage({ type: "selection", count: figma.currentPage.selection.length, scope: documentationRoots([...figma.currentPage.selection]).map((node) => node.name).join(", "), selection: figma.currentPage.id + ":" + figma.currentPage.selection.map((node) => node.id).sort().join(",") });
   }
   figma.on("selectionchange", selectionStatus);
   figma.ui.onmessage = async (message) => {
@@ -119,13 +153,7 @@
       const selection = [...page.selection];
       const selectionKey = page.id + ":" + selection.map((node) => node.id).sort().join(",");
       if (!selection.length) throw new Error("Select at least one frame or layer in Figma.");
-      const ids = new Set(selection.map((node) => node.id));
-      const roots = selection.filter((node) => {
-        for (let parent = node.parent; parent; parent = parent.parent) {
-          if (ids.has(parent.id)) return false;
-        }
-        return true;
-      });
+      const roots = documentationRoots(selection);
       const children = [];
       for (const node of roots) {
         const result = await node.exportAsync({ format: "JSON_REST_V1" });
@@ -137,6 +165,7 @@
       const previewWarnings = [];
       let imageBytes = 0;
       async function collect(node, sectionId, imagesOnly) {
+        if (node.visible === false) return;
         const structural = ["FRAME", "SECTION", "COMPONENT", "COMPONENT_SET", "INSTANCE", "GROUP"].includes(node.type);
         const owner = structural || roots.includes(node) ? node.id : sectionId;
         const isImage = "fills" in node && Array.isArray(node.fills) && node.fills.some((paint) => paint.type === "IMAGE");
@@ -148,7 +177,7 @@
               const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
               if (imageBytes + bytes.length <= 5 * 1024 * 1024) {
                 imageBytes += bytes.length;
-                previews.push({ id: node.id, name: node.name, page: page.name, width: node.width * scale, height: node.height * scale, data: "data:image/png;base64," + figma.base64Encode(bytes), kind: isImage ? "image-layer" : "component" });
+                previews.push({ id: node.id, name: node.name, page: page.name, ...pngDimensions(bytes, node.width * scale, node.height * scale), data: "data:image/png;base64," + figma.base64Encode(bytes), kind: isImage ? "image-layer" : "component" });
               } else {
                 if (isImage) throw new Error("Image size limit reached. Select fewer frames so every image can be included.");
                 previewWarnings.push("Preview omitted due to export size: " + node.name);
@@ -170,6 +199,7 @@
         previews,
         imageAssets,
         previewWarnings,
+        scope: { selectedCount: selection.length, frameNames: roots.map((node) => node.name), expanded: roots.some((node) => !selection.includes(node)) },
         format: "figdoc-plugin",
         version: 1,
         file: { name: figma.root.name, document: { id: "document", type: "DOCUMENT", children: [

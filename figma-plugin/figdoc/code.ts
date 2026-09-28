@@ -1,6 +1,7 @@
+import { documentationRoots, pngDimensions } from '../selection.js'
 let busy = false
 function selectionStatus() {
-  figma.ui.postMessage({ type: 'selection', count: figma.currentPage.selection.length, selection: figma.currentPage.id + ':' + figma.currentPage.selection.map(node => node.id).sort().join(',') })
+  figma.ui.postMessage({ type: 'selection', count: figma.currentPage.selection.length, scope: documentationRoots([...figma.currentPage.selection]).map(node => node.name).join(', '), selection: figma.currentPage.id + ':' + figma.currentPage.selection.map(node => node.id).sort().join(',') })
 }
 
 figma.on('selectionchange', selectionStatus)
@@ -13,13 +14,7 @@ figma.ui.onmessage = async (message: { type: string }) => {
     const selection = [...page.selection]
     const selectionKey = page.id + ':' + selection.map(node => node.id).sort().join(',')
     if (!selection.length) throw new Error('Select at least one frame or layer in Figma.')
-    const ids = new Set(selection.map(node => node.id))
-    const roots = selection.filter(node => {
-      for (let parent: BaseNode | null = node.parent; parent; parent = parent.parent) {
-        if (ids.has(parent.id)) return false
-      }
-      return true
-    })
+    const roots = documentationRoots(selection)
     // Repair missing text/children from live nodes rather than silently exporting an empty tree.
     function hydrate(raw: any, live: SceneNode): any {
       const result = { ...raw, id: live.id, name: live.name || raw?.name, type: live.type || raw?.type }
@@ -70,6 +65,7 @@ figma.ui.onmessage = async (message: { type: string }) => {
     const previewWarnings: string[] = []
     let imageBytes = 0
     async function collect(node: SceneNode, sectionId: string, imagesOnly: boolean) {
+      if (node.visible === false) return
       const structural = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type)
       const owner = structural || roots.includes(node) ? node.id : sectionId
       const isImage = 'fills' in node && Array.isArray(node.fills) && node.fills.some(paint => paint.type === 'IMAGE')
@@ -81,7 +77,7 @@ figma.ui.onmessage = async (message: { type: string }) => {
             const bytes = await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } })
             if (imageBytes + bytes.length <= 5 * 1024 * 1024) {
               imageBytes += bytes.length
-              previews.push({ id: node.id, name: node.name, page: page.name, width: node.width * scale, height: node.height * scale, data: 'data:image/png;base64,' + figma.base64Encode(bytes), kind: isImage ? 'image-layer' : 'component' })
+              previews.push({ id: node.id, name: node.name, page: page.name, ...pngDimensions(bytes, node.width * scale, node.height * scale), data: 'data:image/png;base64,' + figma.base64Encode(bytes), kind: isImage ? 'image-layer' : 'component' })
             } else {
               if (isImage) throw new Error('Image size limit reached. Select fewer frames so every image can be included.')
               previewWarnings.push('Preview omitted due to export size: ' + node.name)
@@ -101,6 +97,7 @@ figma.ui.onmessage = async (message: { type: string }) => {
     for (const node of roots) await collect(node, node.id, false)
     const payload = {
       previews, imageAssets, previewWarnings,
+      scope: { selectedCount: selection.length, frameNames: roots.map(node => node.name), expanded: roots.some(node => !selection.includes(node)) },
       format: 'figdoc-plugin', version: 1,
       file: { name: figma.root.name, document: { id: 'document', type: 'DOCUMENT', children: [
         { id: page.id, name: page.name, type: 'CANVAS', children }

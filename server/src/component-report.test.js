@@ -19,7 +19,7 @@ test('component template preserves editable copy, previews and explicit heading/
  const zip = await JSZip.loadAsync(await toDocx(doc, false, blocks))
  assert.match(await zip.file('word/document.xml').async('string'), /Actual heading/)
  assert.ok(Object.keys(zip.files).some(name => name.startsWith('word/media/') && name.endsWith('.png')))
- assert.ok(pdfDefinition(doc, blocks).content.flatMap(b => b.stack || [b]).some(b => b.image === png))
+ assert.ok(pdfDefinition(doc, blocks).content.flatMap(b => b.stack || [b]).some(b => b.image === png || b.table?.body?.[0]?.[0]?.image === png))
  assert.throws(() => importPlugin({ ...payload, previews: [{ ...payload.previews[0], data: 'https://example.com/image.png' }] }))
 })
 

@@ -1,9 +1,9 @@
 # Figdoc website documentation
 
-Build 2026.09.28.1. No login or registration.
+Build 2026.09.28.2. No login or registration.
 
 1. In Figma Desktop, import manifest.json using Plugins > Development > Import plugin from manifest.
-2. Select the complete frames you want to document. Nested layers are included; other pages are not.
+2. Select screens or any layers inside them. Child selections expand to their containing screen; the plugin shows that scope before export. Duplicate selections are merged in document order. Other pages are not included.
 3. Open Figdoc and click Prepare document.
 4. Download Word/PDF and the matching images ZIP. Technical JSON retains the full layer inventory.
 

@@ -60,7 +60,7 @@ window.onmessage = event => {
     $('retry').hidden = true
     count = message.count
     if (selection !== message.selection) { selection = message.selection; clear(); status('Selection changed. Prepare an export.') }
-    $('selection').textContent = count + ' selected layer' + (count === 1 ? '' : 's')
+    $('selection').textContent = count + ' selected layer' + (count === 1 ? '' : 's') + (message.scope ? ' · Document scope: ' + message.scope : '')
     controls(); return
   }
   if (!['result', 'error'].includes(message.type)) return
