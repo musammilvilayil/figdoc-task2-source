@@ -30,6 +30,7 @@ function spec(p) {
 export function componentBlocks(doc) {
  const layers=doc.layers || [], content=doc.content || [], previews=doc.previews || []
  if(!layers.length && !content.length && !previews.length) throw new Error('No text or previews were captured. Select an app screen frame and prepare again.')
+ const contentDocument=doc.exportScope?.mode==='page'
  const byId=new Map(layers.map(l=>[l.id,l])), images=previews.filter(p=>p.kind==='image-layer')
  const roots=layers.filter(l=>!byId.has(l.parentId))
  const blocks=[], usedCopy=new Set(), usedImages=new Set(), usedPreviews=new Set()
@@ -37,26 +38,42 @@ export function componentBlocks(doc) {
  const fields=rows=>blocks.push({...table(['Property','Details'],rows,[28,72]),keepTogether:rows.length<=12&&rows.every(row=>row.every(value=>String(value).length<200))})
  const within=(layer,root)=>{const seen=new Set();while(layer&&!seen.has(layer.id)){if(layer.id===root.id)return true;seen.add(layer.id);layer=byId.get(layer.parentId)}return false}
  const visible=layer=>{const seen=new Set();while(layer&&!seen.has(layer.id)){if(layer.visible===false)return false;seen.add(layer.id);layer=byId.get(layer.parentId)}return true}
+ const backgroundFor=preview=>{
+  let layer=byId.get(preview.id);const seen=new Set()
+  while(layer&&!seen.has(layer.id)){
+   seen.add(layer.id)
+   const fill=(layer.properties?.fills || []).find(f=>f.visible!==false&&f.type==='SOLID'&&(f.opacity??1)===1)
+   const color=hex(fill?.color);if(color)return color.slice(1)
+   layer=byId.get(layer.parentId)
+  }
+  return 'FFFFFF'
+ }
  const showImage=image=>{
   usedImages.add(image);usedPreviews.add(image)
-  add('h3',image.name || 'Image');blocks.push({...picture(image),background:'202020'})
+  add('h3',image.name || 'Image');blocks.push({...picture(image),background:backgroundFor(image)})
   const p=byId.get(image.id)?.properties || {},fill=(p.fills || []).find(f=>f.type==='IMAGE'&&f.visible!==false)
   fields([['Image file',assetFilename(image,images.indexOf(image))],['Alt text',p.altText || 'To add'],['Design size',px(p.width ?? p.absoluteBoundingBox?.width)+' x '+px(p.height ?? p.absoluteBoundingBox?.height)],['Image sizing',fill?.scaleMode || 'Not captured'],['Export size',Math.round(image.width)+' x '+Math.round(image.height)+' px'],['Image source',p.imageUrl || 'Included in images ZIP']])
  }
  const showCopy=item=>{
   usedCopy.add(item)
   const raw=byId.get(item.id)?.properties || {},style=item.style || {},type=raw.style || {},button=item.role==='Button',heading=item.role==='Heading'||item.headingLevel
-  add('h3',(item.name && item.name.trim().replace(/\s+/g,' ')!==item.content.trim().replace(/\s+/g,' ')) ? item.name : (heading ? 'Heading' : button ? 'Button' : item.role==='Label' ? 'Label' : 'Description'));add('body',item.content);blocks[blocks.length-1].keepWithMeta=true
+  add('h3',(!contentDocument && item.name && item.name.trim().replace(/\s+/g,' ')!==item.content.trim().replace(/\s+/g,' ')) ? item.name : (heading ? 'Heading' : button ? 'Button' : item.role==='Label' ? 'Label' : 'Description'));add('body',item.content);blocks[blocks.length-1].keepWithMeta=true
   const link=item.linkUrl || raw.hyperlink?.url
+  if(contentDocument){
+   add('meta',[item.headingLevel || item.role || 'Text',[style.family || type.fontFamily || 'Font not captured',style.weight || type.fontWeight || ''].filter(Boolean).join(' '),px(style.size ?? type.fontSize),paint(raw.fills) || style.color || '',type.lineHeightPx ? 'Line height: '+px(type.lineHeightPx) : '',type.letterSpacing ? 'Tracking: '+px(type.letterSpacing) : '',type.textAlignHorizontal || '',link ? 'Link: '+link : button ? 'Link: To add' : ''].filter(Boolean).join(' | '))
+   if(raw.textSegments?.length>1)blocks.push(table(['Text run','Font and size'],raw.textSegments.map(run=>[run.characters || '',`${run.fontName?.family || 'Mixed'} ${run.fontName?.style || ''} | ${px(run.fontSize)}${run.hyperlink?.url ? ' | '+run.hyperlink.url : ''}`]),[60,40]))
+   return
+  }
   fields([['Content type',heading ? 'Heading' : button ? 'Button' : item.role || 'Text'],...(heading ? [['Heading level',item.headingLevel || 'To add']] : []),...(button || link ? [['Link URL',link || 'To add'],['Target',item.target || 'To add'],['Accessibility label',item.ariaLabel || 'To add']] : []),['Font',[style.family || type.fontFamily || raw.fontName?.family || 'Not captured',style.weight || type.fontWeight || raw.fontName?.style || ''].filter(Boolean).join(' | ')],['Font size',px(style.size ?? type.fontSize ?? raw.fontSize)],['Line height',px(type.lineHeightPx ?? style.lineHeight ?? (raw.lineHeight?.unit==='PIXELS' ? raw.lineHeight.value : undefined))],['Text color',paint(raw.fills) || style.color || 'Not captured'],...(type.letterSpacing!==undefined ? [['Letter spacing',px(type.letterSpacing)]] : []),...(type.textAlignHorizontal ? [['Text alignment',type.textAlignHorizontal]] : [])])
   if(raw.textSegments?.length>1)blocks.push(table(['Text run','Font and size'],raw.textSegments.map(run=>[run.characters || '',`${run.fontName?.family || 'Mixed'} ${run.fontName?.style || ''} | ${px(run.fontSize)}`]),[60,40]))
  }
  const showSection=(name,members,copy,sectionImages,cover,level='h2')=>{
   add(level,name || 'Section')
-  if(cover&&!usedPreviews.has(cover)&&cover.kind!=='image-layer'){blocks.push({...picture(cover),background:'202020'});usedPreviews.add(cover)}
+  if(cover&&!usedPreviews.has(cover)&&cover.kind!=='image-layer'){blocks.push({...picture(cover),background:backgroundFor(cover)});usedPreviews.add(cover)}
   for(const image of sectionImages)if(!usedImages.has(image))showImage(image)
   for(const item of copy)if(!usedCopy.has(item))showCopy(item)
-  if(members.length){add('h3','Layout and appearance');blocks.push(table(['Element and parent','Position and size','Design details'],members.map(l=>{
+  const layoutMembers=contentDocument ? members.filter((l,i)=>i===0 || (l.parentId===members[0]?.id&&['FRAME','INSTANCE','COMPONENT'].includes(l.type))) : members
+  if(layoutMembers.length){add('h3','Layout and appearance');blocks.push(table(['Element and parent','Position and size','Design details'],layoutMembers.map(l=>{
    const p=l.properties || {},box=p.absoluteBoundingBox || {},position=p.x!==undefined ? `Parent: ${num(p.x)}, ${num(p.y) ?? '?'}` : box.x!==undefined ? `Canvas: ${num(box.x)}, ${num(box.y)}` : 'Position not captured'
    return [l.name+'\n'+(byId.get(l.parentId)?.name || 'Selected root'),position+'\n'+px(p.width ?? box.width)+' x '+px(p.height ?? box.height),spec(p)]
   }),[29,24,47]))}
@@ -65,17 +82,20 @@ export function componentBlocks(doc) {
   if(interactions.length){add('h3','Interactions');blocks.push(table(['Element','Trigger','Action'],interactions,[28,22,50]))}
  }
  add('title',doc.source.name);add('subtitle','Website documentation')
- add('body','Sections follow the selected Figma layer order. Pictures, exact copy, links and design details are grouped together. This document covers the selected design only. To add marks information not supplied by the design; it does not request a design change.')
+ if(doc.exportScope?.mode==='page')add('body','Current Figma page: '+doc.exportScope.pageName+'. All visible screens on this page are included; other Figma pages are not included.')
+ add('body','Sections follow the Figma layer order. Pictures, exact copy, links and design details are grouped together. To add marks information not supplied by the design; it does not request a design change.')
  fields([['Figma source',doc.source.url || 'Not supplied'],['Website URL',doc.source.websiteUrl || 'To add']])
  add('h1','Page metadata')
  fields([['Page title',doc.seo?.title || 'To add'],['Meta description',doc.seo?.description || 'To add'],['Canonical URL',doc.seo?.canonicalUrl || 'To add'],['Social share title',doc.seo?.socialTitle || 'To add'],['Social share description',doc.seo?.socialDescription || 'To add'],['Social share image',doc.seo?.socialImage || 'To add']])
  add('meta','Dimensions are captured design values; positions are relative to the named parent unless marked Canvas. PNG assets match the filenames in the images ZIP and may be downscaled. Website breakpoints are not inferred from frame sizes.')
  for(const root of roots.filter(visible)){
   const all=layers.filter(l=>within(l,root)&&visible(l)),ids=new Set(all.map(l=>l.id)),ownCopy=content.filter(c=>ids.has(c.id)||(!byId.has(c.id)&&ids.has(c.sectionId))),ownImages=images.filter(i=>ids.has(i.id))
-  const groups=all.filter(l=>l.parentId===root.id&&['FRAME','GROUP','COMPONENT','INSTANCE','COMPONENT_SET','SECTION'].includes(l.type))
+  let groupParent=root
+  if(contentDocument){const seen=new Set();while(!seen.has(groupParent.id)){seen.add(groupParent.id);const children=all.filter(l=>l.parentId===groupParent.id);if(children.length!==1||!['FRAME','GROUP'].includes(children[0].type))break;groupParent=children[0]}}
+  const groups=all.filter(l=>l.parentId===groupParent.id&&['FRAME','GROUP','COMPONENT','INSTANCE','COMPONENT_SET','SECTION'].includes(l.type))
   if(!groups.length){showSection(root.name,all,ownCopy,ownImages,previews.find(p=>p.id===root.id),'h1');continue}
   add('h1',root.name)
-  const cover=previews.find(p=>p.id===root.id&&p.kind!=='image-layer');if(cover){blocks.push({...picture(cover),background:'202020'});usedPreviews.add(cover)}
+  const cover=previews.find(p=>p.id===root.id&&p.kind!=='image-layer');if(cover){blocks.push({...picture(cover),background:backgroundFor(cover)});usedPreviews.add(cover)}
   const assigned=new Set(groups.flatMap(g=>all.filter(l=>within(l,g)).map(l=>l.id)))
   showSection('Frame layout',all.filter(l=>!assigned.has(l.id)),ownCopy.filter(c=>!assigned.has(c.id)&&!assigned.has(c.sectionId)),ownImages.filter(i=>!assigned.has(i.id)))
   for(const group of groups){const members=all.filter(l=>within(l,group)),memberIds=new Set(members.map(l=>l.id));showSection(group.name,members,ownCopy.filter(c=>memberIds.has(c.id)||(!byId.has(c.id)&&memberIds.has(c.sectionId))),ownImages.filter(i=>memberIds.has(i.id)),previews.find(p=>p.id===group.id))}

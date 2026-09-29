@@ -33,15 +33,39 @@
     }
     return { width: Math.max(1, Math.round(fallbackWidth)), height: Math.max(1, Math.round(fallbackHeight)) };
   }
+  function pageDocumentationRoots(page) {
+    const roots = [];
+    function visit(node) {
+      if (node.visible === false) return;
+      if (node.type === "SECTION") {
+        for (const child of node.children || []) visit(child);
+      } else roots.push(node);
+    }
+    for (const child of page.children || []) visit(child);
+    return roots;
+  }
 
   // figma-plugin/figdoc/code.ts
   var busy = false;
+  var scopeMode = "page";
+  function exportRoots() {
+    return scopeMode === "page" ? pageDocumentationRoots(figma.currentPage) : documentationRoots([...figma.currentPage.selection]);
+  }
+  function scopeKey() {
+    return figma.currentPage.id + ":" + scopeMode + ":" + exportRoots().map((node) => node.id).join(",");
+  }
   function selectionStatus() {
-    figma.ui.postMessage({ type: "selection", count: figma.currentPage.selection.length, scope: documentationRoots([...figma.currentPage.selection]).map((node) => node.name).join(", "), selection: figma.currentPage.id + ":" + figma.currentPage.selection.map((node) => node.id).sort().join(",") });
+    const roots = exportRoots();
+    figma.ui.postMessage({ type: "selection", count: roots.length, scopeMode, pageName: figma.currentPage.name, scope: roots.map((node) => node.name).join(", "), selection: scopeKey() });
   }
   figma.on("selectionchange", selectionStatus);
+  figma.on("currentpagechange", selectionStatus);
   figma.ui.onmessage = async (message) => {
     if (message.type === "ready") return selectionStatus();
+    if (message.type === "scope" && !busy) {
+      scopeMode = message.scope === "selection" ? "selection" : "page";
+      return selectionStatus();
+    }
     if (message.type !== "export" || busy) return;
     busy = true;
     try {
@@ -151,11 +175,12 @@
       var hydrate = hydrate2;
       const page = figma.currentPage;
       const selection = [...page.selection];
-      const selectionKey = page.id + ":" + selection.map((node) => node.id).sort().join(",");
-      if (!selection.length) throw new Error("Select at least one frame or layer in Figma.");
-      const roots = documentationRoots(selection);
+      const selectionKey = scopeKey();
+      const roots = exportRoots();
+      if (!roots.length) throw new Error(scopeMode === "page" ? "This page has no visible designs to document." : "Select a frame or switch to Current page.");
       const children = [];
-      for (const node of roots) {
+      for (const [index, node] of roots.entries()) {
+        figma.ui.postMessage({ type: "progress", message: "Reading screen " + (index + 1) + " of " + roots.length + ": " + node.name });
         const result = await node.exportAsync({ format: "JSON_REST_V1" });
         if (!result.document) throw new Error("Figma could not export this selection.");
         children.push(hydrate2(result.document, node));
@@ -163,6 +188,20 @@
       const previews = [];
       const imageAssets = [];
       const previewWarnings = [];
+      const previewIds = new Set(roots.map((node) => node.id));
+      for (const root of roots) {
+        let parent = root;
+        if (scopeMode === "page") {
+          while ("children" in parent) {
+            const visible = parent.children.filter((child) => child.visible !== false);
+            if (visible.length !== 1 || !["FRAME", "GROUP"].includes(visible[0].type)) break;
+            parent = visible[0];
+          }
+        }
+        if ("children" in parent) for (const child of parent.children) {
+          if (["FRAME", "SECTION", "COMPONENT", "COMPONENT_SET", "INSTANCE", "GROUP"].includes(child.type)) previewIds.add(child.id);
+        }
+      }
       let imageBytes = 0;
       async function collect(node, sectionId, imagesOnly) {
         if (node.visible === false) return;
@@ -170,12 +209,12 @@
         const owner = structural || roots.includes(node) ? node.id : sectionId;
         const isImage = "fills" in node && Array.isArray(node.fills) && node.fills.some((paint) => paint.type === "IMAGE");
         if (isImage && imagesOnly) imageAssets.push({ id: node.id, name: node.name, sectionId: owner });
-        if ((imagesOnly ? isImage : (structural || roots.includes(node)) && !isImage) && "exportAsync" in node && node.width > 0 && node.height > 0) {
-          if (previews.length < 40 && imageBytes < 5 * 1024 * 1024) {
+        if ((imagesOnly ? isImage : previewIds.has(node.id) && !isImage) && "exportAsync" in node && node.width > 0 && node.height > 0) {
+          if (previews.length < 300 && imageBytes < 24 * 1024 * 1024) {
             try {
               const scale = Math.min(900 / node.width, 650 / node.height, 1);
               const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
-              if (imageBytes + bytes.length <= 5 * 1024 * 1024) {
+              if (imageBytes + bytes.length <= 24 * 1024 * 1024) {
                 imageBytes += bytes.length;
                 previews.push({ id: node.id, name: node.name, page: page.name, ...pngDimensions(bytes, node.width * scale, node.height * scale), data: "data:image/png;base64," + figma.base64Encode(bytes), kind: isImage ? "image-layer" : "component" });
               } else {
@@ -193,13 +232,16 @@
         }
         if ("children" in node) for (const child of node.children) await collect(child, owner, imagesOnly);
       }
-      for (const node of roots) await collect(node, node.id, true);
+      for (const [index, node] of roots.entries()) {
+        figma.ui.postMessage({ type: "progress", message: "Capturing images for screen " + (index + 1) + " of " + roots.length });
+        await collect(node, node.id, true);
+      }
       for (const node of roots) await collect(node, node.id, false);
       const payload = {
         previews,
         imageAssets,
         previewWarnings,
-        scope: { selectedCount: selection.length, frameNames: roots.map((node) => node.name), expanded: roots.some((node) => !selection.includes(node)) },
+        scope: { mode: scopeMode, pageName: page.name, selectedCount: selection.length, frameNames: roots.map((node) => node.name), expanded: roots.some((node) => !selection.includes(node)) },
         format: "figdoc-plugin",
         version: 1,
         file: { name: figma.root.name, document: { id: "document", type: "DOCUMENT", children: [

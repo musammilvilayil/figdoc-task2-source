@@ -13,6 +13,7 @@ test('plugin selection exports once and flows through parser and Word/PDF', asyn
   page.selection = [frame, { id: '2:2', parent: frame, exportAsync: () => { throw new Error('Nested selection must not export twice') } }]
   const figma = { currentPage: page, root: { name: 'Plugin test' }, showUI() {}, on() {}, ui: { postMessage: message => messages.push(message) } }
   vm.runInNewContext(await readFile(new URL('../../figma-plugin/code.js', import.meta.url), 'utf8'), { figma, __html__: '', fetch: () => { throw new Error('Plugin must not use network authentication') } })
+  await figma.ui.onmessage({type:'scope',scope:'selection'})
   await figma.ui.onmessage({ type: 'export' })
   const result = messages.find(message => message.type === 'result')
   assert.ok(result)
@@ -47,6 +48,7 @@ test('selected bitmap gets a preview and missing REST text is recovered from liv
  const frame = { id: 'f', type: 'FRAME', name: 'Home', children: [text,bitmap], exportAsync: async () => ({document:{id:'f',type:'FRAME',name:'Home'}}) }
  const figma = { currentPage: {id:'p',name:'Screens',selection:[frame]}, root:{name:'Nutrition'}, showUI(){},on(){},base64Encode: bytes => Buffer.from(bytes).toString('base64'),ui:{postMessage: message => messages.push(message)} }
  vm.runInNewContext(await readFile(new URL('../../figma-plugin/code.js', import.meta.url),'utf8'),{figma,__html__:''})
+ await figma.ui.onmessage({type:'scope',scope:'selection'})
  await figma.ui.onmessage({type:'export'})
  assert.equal(messages.at(-1).type,'result')
  const doc=importPlugin(JSON.parse(messages.at(-1).json))
@@ -54,4 +56,22 @@ test('selected bitmap gets a preview and missing REST text is recovered from liv
  assert.equal(doc.previews[0].id,'b')
  assert.equal(doc.imageAssets[0].sectionId,'f')
  assert.equal(doc.previews[0].kind,'image-layer')
+})
+
+test('current page exports every visible screen with no selection',async()=>{
+ const messages=[],page={id:'page',name:'Website',type:'CANVAS',selection:[],children:[]}
+ const make=(id,name)=>({id,name,type:'FRAME',parent:page,children:[],exportAsync:async()=>({document:{id,name,type:'FRAME',children:[{id:id+'t',name:'Body',type:'TEXT',characters:name+' content',style:{}}]}})})
+ const a=make('a','Home'),b=make('b','About'),hidden={...make('h','Hidden'),visible:false}
+ // Keep the mock REST tree to exercise import as well as discovery.
+ delete a.children;delete b.children
+ const section={id:'section',type:'SECTION',children:[a,b,hidden],parent:page};a.parent=section;b.parent=section;hidden.parent=section;page.children=[section]
+ const figma={currentPage:page,root:{name:'Website'},showUI(){},on(){},ui:{postMessage:m=>messages.push(m)}}
+ vm.runInNewContext(await readFile(new URL('../../figma-plugin/code.js',import.meta.url),'utf8'),{figma,__html__:''})
+ assert.equal(messages[0].count,2)
+ await figma.ui.onmessage({type:'export'})
+ const result=messages.find(m=>m.type==='result');assert.ok(result)
+ const payload=JSON.parse(result.json),doc=importPlugin(payload)
+ assert.deepEqual(payload.file.document.children[0].children.map(n=>n.name),['Home','About'])
+ assert.equal(doc.content.length,2);assert.equal(doc.exportScope.pageName,'Website')
+ assert.ok(messages.some(m=>m.type==='progress'))
 })

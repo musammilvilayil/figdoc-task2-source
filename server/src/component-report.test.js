@@ -68,3 +68,22 @@ test('reference sections keep matching pictures and copy together without review
  assert.ok(!JSON.stringify(blocks).includes('Do not publish'))
  assert.ok(!JSON.stringify(blocks).match(/Needs review|Not approved|Open items and completion|Review record|Decision needed/))
 })
+
+test('current-page report unwraps screen wrappers and keeps each copy item in its section', () => {
+ const layer=(id,parentId,type,name)=>({id,parentId,type,name,visible:true,properties:{width:1200,height:400}})
+ const doc={source:{name:'Site'},exportScope:{mode:'page',pageName:'Page 1'},layers:[layer('root','page','FRAME','Home'),layer('wrapper','root','FRAME','Wrapper'),layer('hero','wrapper','FRAME','Hero'),layer('text','hero','TEXT','Headline'),layer('cards','wrapper','FRAME','Cards'),layer('cardText','cards','TEXT','Card title'),layer('decor','cards','VECTOR','Decoration')],content:[{id:'text',name:'Headline',content:'Build something',role:'Heading',headingLevel:'H1',style:{family:'Inter',size:32}},{id:'cardText',name:'Card title',content:'Explore features',role:'Body',style:{family:'Inter',size:16}}],previews:[{id:'hero',name:'Hero',kind:'component',width:1200,height:400,data:png}]}
+ const blocks=componentBlocks(doc),hero=blocks.findIndex(b=>b.kind==='h2'&&b.text==='Hero'),cards=blocks.findIndex(b=>b.kind==='h2'&&b.text==='Cards')
+ assert.ok(hero>=0&&cards>hero)
+ assert.ok(blocks.slice(hero,cards).some(b=>b.kind==='image'))
+ for(const copy of doc.content)assert.equal(blocks.filter(b=>b.kind==='body'&&b.text===copy.content).length,1)
+ assert.ok(blocks.slice(hero,cards).some(b=>b.kind==='meta'&&b.text.includes('Inter')&&b.text.includes('32 px')))
+ assert.ok(!blocks.some(b=>b.rows?.some(r=>r[0]==='Content type'||r[0].includes('Decoration'))))
+ assert.ok(blocks.some(b=>b.text?.includes('Current Figma page: Page 1')))
+})
+
+test('transparent section previews inherit the screen background',()=>{
+ const doc={source:{name:'Site'},layers:[{id:'root',name:'Screen',type:'FRAME',properties:{fills:[{type:'SOLID',color:{r:1,g:1,b:1}}]}},{id:'hero',parentId:'root',name:'Hero',type:'FRAME',properties:{}}],content:[],previews:[{id:'hero',name:'Hero',kind:'component',width:100,height:50,data:png}]}
+ assert.equal(componentBlocks(doc).find(b=>b.kind==='image').background,'FFFFFF')
+ doc.layers[0].properties.fills[0].color={r:0,g:0,b:0}
+ assert.equal(componentBlocks(doc).find(b=>b.kind==='image').background,'000000')
+})

@@ -12,6 +12,7 @@ let connected = false, attempts = 0
 const status = message => { $('status').textContent = message }
 function controls() {
   $('export').disabled = busy || !count
+  $('scope').disabled = busy
   for (const id of ['docx', 'pdf', 'json', 'assets']) $(id).disabled = busy || !report
 }
 controls()
@@ -22,9 +23,10 @@ function download(blob, extension, name) {
   document.body.appendChild(link); link.click(); link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
+$('scope').onchange = () => { clear();parent.postMessage({pluginMessage:{type:'scope',scope:$('scope').value}},'*') }
 $('export').onclick = async () => {
   if (busy || !count) return
-  clear(); busy = true; controls(); status('Reading selected layers…')
+  clear(); busy = true; controls(); status('Reading design…')
   parent.postMessage({ pluginMessage: { type: 'export' } }, '*')
 }
 for (const format of ['docx', 'pdf', 'json', 'assets']) $(format).onclick = async () => {
@@ -54,13 +56,14 @@ window.onmessage = event => {
   // Figma bridges sandbox messages; event.source is not guaranteed to be parent.
   const message = event.data?.pluginMessage
   if (!message) return
+  if (message.type === 'progress') { status(message.message);return }
   if (message.type === 'selection') {
     if (!Number.isInteger(message.count) || typeof message.selection !== 'string') return
     connected = true; clearInterval(handshake)
     $('retry').hidden = true
     count = message.count
     if (selection !== message.selection) { selection = message.selection; clear(); status('Selection changed. Prepare an export.') }
-    $('selection').textContent = count + ' selected layer' + (count === 1 ? '' : 's') + (message.scope ? ' · Document scope: ' + message.scope : '')
+    $('selection').textContent = message.scopeMode === 'page' ? 'Current page: ' + message.pageName + ' · ' + count + ' screen(s) / top-level designs. No selection needed.' : count + ' selected screen(s) · ' + (message.scope || '')
     controls(); return
   }
   if (!['result', 'error'].includes(message.type)) return
@@ -68,7 +71,7 @@ window.onmessage = event => {
   if (message.type === 'error') { status(message.message); return }
   if (message.selection !== selection) { status('Selection changed. Prepare a new export.'); return }
   try {
-    if (new Blob([message.json]).size > 16 * 1024 * 1024) throw new Error('Selection exceeds 16 MB. Select fewer frames.')
+    if (new Blob([message.json]).size > 64 * 1024 * 1024) throw new Error('Page export exceeds 64 MB. Use Selected frames for a smaller export.')
     payload = JSON.parse(message.json); report = importPlugin(payload)
     if (!report.content.length && !report.previews?.length && !report.layers?.length) throw new Error('No text or previews captured. Select an app screen frame (not an empty layer), then prepare again.')
     status((report.layers?.length || 0) + ' layers | ' + (report.previews?.length || 0) + ' previews | ' + report.content.length + ' text items · ' + report.pages.length + ' page(s). Ready to download.')

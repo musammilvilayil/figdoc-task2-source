@@ -23,3 +23,15 @@ export function pngDimensions(bytes, fallbackWidth, fallbackHeight) {
  }
  return {width:Math.max(1,Math.round(fallbackWidth)),height:Math.max(1,Math.round(fallbackHeight))}
 }
+
+// Figma Sections organize screens; they are not website screens themselves.
+export function pageDocumentationRoots(page) {
+ const roots=[]
+ function visit(node) {
+  if(node.visible===false)return
+  if(node.type==='SECTION') { for(const child of node.children || [])visit(child) }
+  else roots.push(node)
+ }
+ for(const child of page.children || [])visit(child)
+ return roots
+}

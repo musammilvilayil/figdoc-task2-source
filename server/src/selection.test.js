@@ -14,3 +14,10 @@ test('PNG sizes use actual encoded integer pixels',()=>{
  const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE5kAAAAASUVORK5CYII=','base64'))
  assert.deepEqual(pngDimensions(bytes,900,530.635),{width:1,height:1})
 })
+
+test('page scope flattens nested Figma sections and skips hidden sections',async()=>{
+ const {pageDocumentationRoots}=await import('../../figma-plugin/selection.js')
+ const home={id:'home',type:'FRAME'},about={id:'about',type:'FRAME'}
+ const page={children:[{type:'SECTION',children:[home,{type:'SECTION',children:[about]}]},{type:'SECTION',visible:false,children:[{id:'hidden',type:'FRAME'}]}]}
+ assert.deepEqual(pageDocumentationRoots(page).map(n=>n.id),['home','about'])
+})

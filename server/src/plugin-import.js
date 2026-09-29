@@ -19,8 +19,9 @@ export function importPlugin(payload) {
   }
   if (!payload.file.document.children?.length || payload.file.document.children.some(page => page.type !== 'CANVAS')) invalid()
   const result = parseFigmaDocument(payload.file)
+  if(payload.scope?.mode==='page')result.exportScope={mode:'page',pageName:String(payload.scope.pageName || '')}
   if (payload.previews !== undefined) {
-    if (!Array.isArray(payload.previews) || payload.previews.length > 40) invalid()
+    if (!Array.isArray(payload.previews) || payload.previews.length > 300) invalid()
     for (const preview of payload.previews) {
       if (!preview || typeof preview.id !== 'string' || typeof preview.name !== 'string' || typeof preview.page !== 'string' || !Number.isFinite(preview.width) || !Number.isFinite(preview.height) || preview.width <= 0 || preview.height <= 0 || typeof preview.data !== 'string' || !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$/.test(preview.data) || preview.data.length > 7 * 1024 * 1024) invalid()
     }
@@ -34,6 +35,6 @@ export function importPlugin(payload) {
     if (!Array.isArray(payload.previewWarnings) || payload.previewWarnings.some(item => typeof item !== 'string')) invalid()
     result.previewWarnings = payload.previewWarnings
   }
-  result.insights.warnings.push('Imported from a Figma plugin selection. Content outside the selected layers is not included.')
+  result.insights.warnings.push(payload.scope?.mode === 'page' ? 'Imported from the current Figma page. Other Figma pages are not included.' : 'Imported from a Figma plugin selection. Content outside the selected layers is not included.')
   return result
 }
