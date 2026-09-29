@@ -1,3 +1,4 @@
+import { layerInventory } from './layer-inventory.js'
 const TEXT_ROLES = [
   [/^(h1|hero|display|title)/i, 'Heading'],
   [/^(h2|h3|heading|subtitle)/i, 'Subheading'],
@@ -21,6 +22,8 @@ function classifyText(node, trail = []) {
   const candidate = `${node.name || ''} ${node.style?.fontSize || ''}`
   const namedRole = TEXT_ROLES.find(([pattern]) => pattern.test(candidate))?.[1]
   if (namedRole) return namedRole
+  if ((node.characters || "").trim().split(/\r?\n/).length > 1) return 'Body'
+  if (/^[A-Z][A-Z0-9 &-]{2,49}$/.test((node.characters || "").trim())) return 'Label'
   const size = node.style?.fontSize || 16
   if (size >= 32) return 'Heading'
   if (size >= 22) return 'Subheading'
@@ -55,7 +58,7 @@ export function parseFigmaDocument(file, sourceUrl = '') {
     colorMap.get(key).usages.add(usage)
   }
 
-  function visit(node, trail, pageName, sectionName) {
+  function visit(node, trail, pageName, sectionName, sectionId = null) {
     nodeCount += 1
     if (node.visible === false) hiddenCount += 1
     const path = [...trail, node.name || node.type].join(' / ')
@@ -84,6 +87,9 @@ export function parseFigmaDocument(file, sourceUrl = '') {
         page: pageName,
         section: sectionName || 'Ungrouped',
         path,
+        sectionId,
+        headingLevel: /^h[1-6](?:\b|[_-])/i.test(node.name || '') ? node.name.slice(0, 2).toUpperCase() : null,
+        linkUrl: style.hyperlink?.type === 'URL' ? style.hyperlink.url : null,
         style: {
           family: style.fontFamily || 'Unknown',
           weight: style.fontWeight || 400,
@@ -100,10 +106,10 @@ export function parseFigmaDocument(file, sourceUrl = '') {
       componentSet.set(componentName, entry)
     }
 
-    const nextSection = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET'].includes(node.type)
+    const nextSection = ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type)
       ? node.name || sectionName
       : sectionName
-    for (const child of node.children || []) visit(child, [...trail, node.name || node.type], pageName, nextSection)
+    for (const child of node.children || []) visit(child, [...trail, node.name || node.type], pageName, nextSection, ['FRAME', 'SECTION', 'COMPONENT', 'COMPONENT_SET', 'INSTANCE', 'GROUP'].includes(node.type) ? node.id : sectionId)
   }
 
   for (const page of file.document?.children || []) {
@@ -136,6 +142,7 @@ export function parseFigmaDocument(file, sourceUrl = '') {
 
   return {
     schemaVersion: '1.0',
+    layers: layerInventory(file.document),
     generatedAt: new Date().toISOString(),
     source: { url: sourceUrl, name: file.name || 'Untitled Figma file', lastModified: file.lastModified || null, version: file.version || null },
     summary: { pages: pages.length, nodes: nodeCount, textItems: textItems.length, components: componentSet.size, colors: colorMap.size },

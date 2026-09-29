@@ -12,7 +12,7 @@ for (const dir of ['figma-plugin/', 'figma-plugin/figdoc/']) {
   const manifestUrl = new URL(dir + 'manifest.json', root)
   const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'))
   manifest.id = '1684128110132396628'
-  manifest.networkAccess = { allowedDomains: ['https://figdoc-e0f98.firebaseapp.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://figdoc-e0f98-default-rtdb.asia-southeast1.firebasedatabase.app'], reasoning: 'Google sign-in via Firebase Authentication. Realtime Database temporarily relays an encrypted login response to this plugin. Design exports stay local.' }
+  manifest.networkAccess = { allowedDomains: ['none'] }
   await writeFile(manifestUrl, JSON.stringify(manifest, null, 2) + '\n')
 }
 console.log('Built both plugin folders with shared Figdoc report engine.')
